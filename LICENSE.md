@@ -1,6 +1,7 @@
 The MIT License (MIT)
 
 Copyright (c) 2015 Jaromir Sukuba
+Copyright (c) 2024-2025 lb7ug (Modifications and Read-to-HEX Engine)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
