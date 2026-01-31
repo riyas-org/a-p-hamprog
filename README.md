@@ -59,6 +59,10 @@ To enable **High Voltage Mode** (triggers the A3 optocoupler):
 * `-s [MS]`: Delay in milliseconds to allow the Arduino bootloader to timeout.
 
 ---
+![Test programmer breakoutboard](/hw/20260131_213336.jpg)
+
+
+
 
 ## ⚠️ Disclaimer
 This is a community-shared modification provided for those who want to use it once in a while for kits like the ATU-100. It is provided "as-is" with no guarantees. Please verify your voltages before connecting to the target PIC to avoid damage.
