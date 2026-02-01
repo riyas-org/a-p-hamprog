@@ -19,7 +19,7 @@ Many ATU-100 units from eBay or AliExpress arrive with:
 
 ### The Catch-22:
 
-To program these factory-locked units for the first time, you **must use HVP mode** (requires a 13V boost converter on the MCLR pin). If you attempt to use HVP mode without a boost converter, or vice versa, the software will return **chip detection errors**.
+To program these factory-locked units for the first time, you **must use HVP mode** (requires a 9V boost converter on the MCLR pin). If you attempt to use HVP mode without a boost converter, or vice versa, the software will return **chip detection errors**.
 
 **Good News:** The firmware provided in this repo has **LVP (Low Voltage Programming) enabled**. Once you successfully flash the chip once using HVP, all subsequent updates can be done in LVP mode (5V only) without the boost converter.
 
