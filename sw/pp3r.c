@@ -166,6 +166,8 @@ void initSerialPort() {
 		printf("unable to open port %s -> %s\n", COM, portname);
 		exit(0);
 	}
+	SetupComm(port_handle, 4096, 4096); // Allocate internal buffers
+    PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
 	strcpy(mode, "baud=57600 data=8 parity=n stop=1");
 	memset(&port_sets, 0, sizeof(port_sets)); /* clear the new struct  */
 	port_sets.DCBlength = sizeof(port_sets);
@@ -1656,6 +1658,10 @@ int main(int argc, char *argv[]) {
 				printf("\nDone.\n");
 		}
 		prog_exit_progmode();
+		
+#if !defined(__linux__) && !defined(__APPLE__)
+    CloseHandle(port_handle);
+#endif
 		return 0;
 	}
 }
