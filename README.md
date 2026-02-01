@@ -54,10 +54,10 @@ To enable HVP support, integrate an optocoupler and a boost converter (e.g., MT3
 
 ### Programming Commands
 To program a **PIC16F1938** (standard LVP):
-`./pp3r -c /dev/ttyACM0 -t 16f1938 file.hex`
+`./pp3r -c /dev/ttyACM0 -t 16f1938 -s 2000 file.hex`
 
 To enable **High Voltage Mode** (triggers the A3 optocoupler):
-`./pp3r -c /dev/ttyACM0 -h -t 16f1938 file.hex`
+`./pp3r -c /dev/ttyACM0 -h -t 16f1938 file.hex -s 2000`
 
 ### Key Options
 * `-h`: Enable High Voltage Programming (HVP) pulse.
