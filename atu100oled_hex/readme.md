@@ -32,7 +32,7 @@ To program these factory-locked units for the first time, you **must use HVP mod
 Check if the programmer can see your PIC:
 
 ```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -pn -v2
+./pp3r -c /dev/ttyUSB0 -s 2000 -t  16f1938 -pn -v2
 
 ```
 
@@ -41,7 +41,7 @@ Check if the programmer can see your PIC:
 *Use this for factory-locked eBay/AliExpress units. Requires 9V boost circuit.*
 
 ```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -h atu_100_fw_EXT_32_oled_lvp.hex -v2
+./pp3r -c /dev/ttyUSB0 -s 2000 -t 16f1938 -h atu_100_fw_EXT_32_oled_lvp.hex -v2
 
 ```
 
@@ -52,7 +52,7 @@ Check if the programmer can see your PIC:
 *Use this once you have flashed the chip with this project's firmware.*
 
 ```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938  atu_100_fw_EXT_32_oled_lvp.hex -v2
+./pp3r -c /dev/ttyUSB0 -s 2000 -t  16f1938  atu_100_fw_EXT_32_oled_lvp.hex -v2
 
 ```
 
@@ -61,7 +61,7 @@ Check if the programmer can see your PIC:
 To attempt to backup existing firmware (remember to check config bytes manually!):
 
 ```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -r dump.hex
+./pp3r -c /dev/ttyUSB0 -s 2000 -t  16f1938 -r dump.hex
 
 ```
 ---
