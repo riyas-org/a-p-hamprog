@@ -6,7 +6,7 @@ Using an optocoupler ensures that the 9V used for HVP never reaches the Arduino 
        ARDUINO NANO/UNO                 OPTOCOUPLER (PC817)
       +----------------+               +-------------------+
       |                |               |   (Inside Chip)   |
-      |   ISP_MCLR [C3]|---[ 220R ]--->| 1 (Anode)  (Col) 4|<---+-- [ 13.5V ]
+      |   ISP_MCLR [C3]|---[ 220R ]--->| 1 (Anode)  (Col) 4|<---+-- [ 9.5V ]
       |            GND |-------------->| 2 (Cath)   (Emi) 3|----+
       +----------------+               +-------------------+    |
                                                                 |
