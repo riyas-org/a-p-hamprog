@@ -1,33 +1,43 @@
-The original hardware schematic from a-p programmer is kept here.
-It work as LVP (low voltage Programmer).
-You can also use a uno board.
-Add boost converter and level shifter to mclr line
+### ⚡ Safe HVP Wiring (Optocoupler Method)
 
-ARDUINO UNO / NANO                OPTOCOUPLER (PC817)
+Using an optocoupler ensures that the 9V used for HVP never reaches the Arduino pins, preventing accidental damage.
+
+```text
+       ARDUINO NANO/UNO                 OPTOCOUPLER (PC817)
       +----------------+               +-------------------+
       |                |               |   (Inside Chip)   |
-      |       **A3** |---[ 220R ]--->| 1 (Anode)  (Col) 4|<--- [ 13.5V + ]
-      |        GND     |-------------->| 2 (Cath)   (Emi) 3|---+
-      +----------------+               +-------------------+   |
-                                                               |
-           TARGET PIC (ICSP)                                   |
-         +-------------------+             **10k Ohm** |
-         | 1: CLK (PGC)      |<--- [ A0 ]  **Resistor** |
-         | 2: DAT (PGD)      |<--- [ A1 ]      |               |
-         | 3: VCC (+5V)      |                 |               |
-         | 4: MCLR (Vpp)     |<----------------+---------------+
-         | 5: GND            |<--- [ GND ]     |
-         +-------------------+                 |
-                                             (GND)
+      |   ISP_MCLR [C3]|---[ 220R ]--->| 1 (Anode)  (Col) 4|<---+-- [ 13.5V ]
+      |            GND |-------------->| 2 (Cath)   (Emi) 3|----+
+      +----------------+               +-------------------+    |
+                                                                |
+                                                                |
+           TARGET PIC (ICSP)                                    |
+         +-------------------+          10k Pull-Down           |
+         | 1: CLK (PGC)      |<--- [From Arduino C0]            |
+         | 2: DAT (PGD)      |<--- [From Arduino C1]            |
+         | 3: VCC (+5V)      |                                  |
+         | 4: MCLR (Vpp)     |<---------------------------------+
+         | 5: GND            |                                  |
+         +-------------------+                                  |
+                   |                                            |
+                   +------------------[ Resistor ]--------------+
+                                         (10k)
 
-You basically need a circuit to switch 5v on arduino A3 to MCLR to 9.5v
-Connect the 5volt from arduino via 220 ohm resistor to the led (ANODE) of optocoupler (PC817)
-CATHODE of optocoupler to ground of arduino.
-The emitter of optocoupler to the MCLR pin of PIC to program
-The emitter also need a 10k resistor to ground 
-Collector of optocupler to approx 9.5 volt (battery or boost converter)
-An extra 0.5 volt (9.5 instead of 9v) is a dirty hack to overcome some peak loss from unwanted voltage divider
-Am not an expert and this can be improved in several ways
-I used a cheap mt3608 to the 5volt and carefully adjusted the potentiometer on it to get 9.5volt
-For checking optocoupler, i temperorly connected 5volt to led side (anode) via 220 ohm resistor,
-and checked voltage on emitter of transistor where 10k is connected to get slightly around 9.5volt(max) 
+```
+
+### 📋 How it works:
+
+1. **Arduino Side:** Pin **C3** drives the internal LED of the optocoupler through a **220Ω current-limiting resistor**.
+2. **High Voltage Side:** The optocoupler acts as a switch. When the Arduino turns on the internal LED, the optocoupler connects the **13.5V Boost Converter** output to the PIC’s **MCLR** pin.
+3. **Pull-Down Resistor:** A **10kΩ resistor** is connected between the PIC's MCLR pin and GND. This ensures that when the optocoupler is "OFF," the MCLR pin stays at 0V (Reset), and when it is "ON," it jumps to 8V (HVP Entry).
+
+### 🚀 HVP Command
+
+As the optocoupler logic effectively "inverts" or isolates the signal, use command below with -h
+**[CODE]bash**
+./pp3r -c /dev/ttyUSB0 -s 16f1938 -h -p atu_100_fw_EXT_32_oled_lvp.hex
+**[CODE]**
+
+### 4-Sentence Release/Description (as requested):
+
+"This project is a hobbyist tool for flashing PIC16F1938 chips in ATU-100 tuners, based on the original `a-p-prog`. Factory-locked units often require an optocoupler-isolated 9.5V boost converter to bypass HVP-only programming"
