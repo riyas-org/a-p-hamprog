@@ -32,16 +32,16 @@ To program these factory-locked units for the first time, you **must use HVP mod
 Check if the programmer can see your PIC:
 
 ```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -i
+./pp3r -c /dev/ttyUSB0 -s 16f1938 -pn -v2
 
 ```
 
 ### 2. High Voltage Programming (HVP)
 
-*Use this for factory-locked eBay/AliExpress units. Requires 13V boost circuit.*
+*Use this for factory-locked eBay/AliExpress units. Requires 9V boost circuit.*
 
 ```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -h -p atu_100_fw_EXT_32_oled_lvp.hex
+./pp3r -c /dev/ttyUSB0 -s 16f1938 -h atu_100_fw_EXT_32_oled_lvp.hex -v2
 
 ```
 
@@ -52,7 +52,7 @@ Check if the programmer can see your PIC:
 *Use this once you have flashed the chip with this project's firmware.*
 
 ```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -p atu_100_fw_EXT_32_oled_lvp.hex
+./pp3r -c /dev/ttyUSB0 -s 16f1938  atu_100_fw_EXT_32_oled_lvp.hex -v2
 
 ```
 
@@ -64,14 +64,6 @@ To attempt to backup existing firmware (remember to check config bytes manually!
 ./pp3r -c /dev/ttyUSB0 -s 16f1938 -r dump.hex
 
 ```
-
-### 5. Erase a Chip
-
-```bash
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -e
-
-```
-
 ---
 
 ## 🔧 Installation
@@ -79,7 +71,7 @@ To attempt to backup existing firmware (remember to check config bytes manually!
 1. **Firmware:** Upload `ppr.ino` to an Arduino Nano or Uno using the Arduino IDE.
 2. **Client:** Compile the C client on your PC:
 ```bash
-gcc pp3r.c -o pp3r
+gcc -Wall pp3r.c -o pp3r
 
 ```
 
