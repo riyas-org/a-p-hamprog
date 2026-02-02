@@ -166,9 +166,16 @@ void initSerialPort() {
 		printf("unable to open port %s -> %s\n", COM, portname);
 		exit(0);
 	}
+	// Clear any stuck data from the previous run
+	SetupComm(port_handle, 4096, 4096);
+    	PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
+
 	strcpy(mode, "baud=57600 data=8 parity=n stop=1");
 	memset(&port_sets, 0, sizeof(port_sets)); /* clear the new struct  */
 	port_sets.DCBlength = sizeof(port_sets);
+	// CRITICAL: Prevent Windows from holding the Reset line
+    	port_sets.fDtrControl = DTR_CONTROL_DISABLE;
+    	port_sets.fRtsControl = RTS_CONTROL_DISABLE;
 
 	if (!BuildCommDCBA(mode, &port_sets)) {
 		printf("dcb settings failed\n");
@@ -255,6 +262,13 @@ void comErr(char *fmt, ...) {
 	fprintf(stderr, "%s", buf);
 	perror(COM);
 	va_end(va);
+#if !defined(__linux__) && !defined(__APPLE__)
+    if (port_handle != INVALID_HANDLE_VALUE) {
+        PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
+        CloseHandle(port_handle);
+        port_handle = INVALID_HANDLE_VALUE; 
+    }
+#endif
 	exit(-1);
 }
 
@@ -1656,6 +1670,11 @@ int main(int argc, char *argv[]) {
 				printf("\nDone.\n");
 		}
 		prog_exit_progmode();
+#if !defined(__linux__) && !defined(__APPLE__)
+    if (port_handle != INVALID_HANDLE_VALUE) {
+        CloseHandle(port_handle);
+    }
+#endif
 		return 0;
 	}
 }
