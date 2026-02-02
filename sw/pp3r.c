@@ -202,6 +202,7 @@ void initSerialPort() {
 	}
 	PurgeComm(port_handle, PURGE_TXCLEAR | PURGE_RXCLEAR);
 }
+/*
 void putByte(int byte) {
 	int n;
 	if (verbose > 3)
@@ -209,6 +210,21 @@ void putByte(int byte) {
 	WriteFile(port_handle, &byte, 1, (LPDWORD)((void *)&n), NULL);
 	if (n != 1)
 		comErr("Serial port failed to send a byte, write returned %d\n", n);
+}
+*/
+
+void putByte(int byte) {
+    DWORD n;
+    unsigned char buf = (unsigned char)byte;
+    if (verbose > 3)
+        flsprintf(stdout, "TX: 0x%02X\n", byte);
+
+    if (!WriteFile(port_handle, &buf, 1, &n, NULL)) {
+        comErr("Windows Error: WriteFile failed with code %d\n", GetLastError());
+    }
+
+    if (n != 1)
+        comErr("Serial port failed to send a byte (Timeout). Write returned %d\n", n);
 }
 
 void putBytes(unsigned char *data, int len) {
