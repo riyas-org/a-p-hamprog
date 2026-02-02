@@ -200,6 +200,7 @@ void initSerialPort() {
 		CloseHandle(port_handle);
 		exit(0);
 	}
+	PurgeComm(port_handle, PURGE_TXCLEAR | PURGE_RXCLEAR);
 }
 void putByte(int byte) {
 	int n;
@@ -211,15 +212,16 @@ void putByte(int byte) {
 }
 
 void putBytes(unsigned char *data, int len) {
-	/*
+	
 	int i;
 	for (i=0;i<len;i++)
 	    putByte(data[i]);
-	*/
+	/*
 	int n;
 	WriteFile(port_handle, data, len, (LPDWORD)((void *)&n), NULL);
 	if (n != len)
 		comErr("Serial port failed to send a byte, write returned %d\n", n);
+	*/
 }
 
 int getByte() {
