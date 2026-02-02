@@ -151,51 +151,101 @@ int getByte() {
 HANDLE port_handle;
 
 void initSerialPort() {
+    char mode[40], portname[20];
+    COMMTIMEOUTS timeout_sets;
+    DCB port_sets;
 
-	char mode[40], portname[20];
-	COMMTIMEOUTS timeout_sets;
-	DCB port_sets;
-	strcpy(portname, "\\\\.\\");
-	strcat(portname, COM);
-	port_handle =
-	    CreateFileA(portname, GENERIC_READ | GENERIC_WRITE, 0, /* no share  */
-	                NULL,                                      /* no security */
-	                OPEN_EXISTING, 0,                          /* no threads */
-	                NULL);                                     /* no templates */
-	if (port_handle == INVALID_HANDLE_VALUE) {
-		printf("unable to open port %s -> %s\n", COM, portname);
-		exit(0);
-	}
-	SetupComm(port_handle, 4096, 4096); // Allocate internal buffers
+    // Format the port name for Windows (handles COM10 and above correctly)
+    snprintf(portname, sizeof(portname), "\\\\.\\%s", COM);
+
+    port_handle = CreateFileA(portname, 
+                             GENERIC_READ | GENERIC_WRITE, 
+                             0,                          /* No sharing */
+                             NULL,                       /* No security */
+                             OPEN_EXISTING, 
+                             0,                          /* No overlapped I/O */
+                             NULL);
+
+    if (port_handle == INVALID_HANDLE_VALUE) {
+        printf("unable to open port %s -> %s\n", COM, portname);
+        exit(0);
+    }
+
+    // Allocate internal driver buffers
+    SetupComm(port_handle, 4096, 4096);
+
+    // Initial wipe of the hardware chip's buffers
     PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
-	strcpy(mode, "baud=57600 data=8 parity=n stop=1");
-	memset(&port_sets, 0, sizeof(port_sets)); /* clear the new struct  */
-	port_sets.DCBlength = sizeof(port_sets);
 
-	if (!BuildCommDCBA(mode, &port_sets)) {
-		printf("dcb settings failed\n");
-		CloseHandle(port_handle);
-		exit(0);
-	}
+    // Initialize DCB struct
+    memset(&port_sets, 0, sizeof(port_sets));
+    port_sets.DCBlength = sizeof(port_sets);
 
-	if (!SetCommState(port_handle, &port_sets)) {
-		printf("cfg settings failed\n");
-		CloseHandle(port_handle);
-		exit(0);
-	}
+    // Get current driver state
+    if (!GetCommState(port_handle, &port_sets)) {
+        printf("failed to get dcb state\n");
+        CloseHandle(port_handle);
+        exit(0);
+    }
 
-	timeout_sets.ReadIntervalTimeout = 1;
-	timeout_sets.ReadTotalTimeoutMultiplier = 1000;
-	timeout_sets.ReadTotalTimeoutConstant = 1;
-	timeout_sets.WriteTotalTimeoutMultiplier = 1000;
-	timeout_sets.WriteTotalTimeoutConstant = 1;
+    // Apply basic baud/parity settings
+    strcpy(mode, "baud=57600 data=8 parity=n stop=1");
+    if (!BuildCommDCBA(mode, &port_sets)) {
+        printf("dcb build failed\n");
+        CloseHandle(port_handle);
+        exit(0);
+    }
 
-	if (!SetCommTimeouts(port_handle, &timeout_sets)) {
-		printf("timeout settings failed\n");
-		CloseHandle(port_handle);
-		exit(0);
-	}
+    /* * CRITICAL FIX FOR WINDOWS CORRUPTION:
+     * Manually override DCB flags to disable all flow control. 
+     * Windows drivers often default these to TRUE, which causes 
+     * the port to "hang" or "buffer lag" after the first run.
+     */
+    port_sets.fBinary      = TRUE;
+    port_sets.fDtrControl  = DTR_CONTROL_DISABLE; // Prevents Arduino auto-reset hang
+    port_sets.fRtsControl  = RTS_CONTROL_DISABLE; // Prevents hardware flow control hang
+    port_sets.fOutxCtsFlow = FALSE;
+    port_sets.fOutxDsrFlow = FALSE;
+    port_sets.fDsrSensitivity = FALSE;
+    port_sets.fOutX        = FALSE;               // Disable XON/XOFF transmit
+    port_sets.fInX         = FALSE;                // Disable XON/XOFF receive
+    port_sets.fErrorChar   = FALSE;
+    port_sets.fNull        = FALSE;
+    port_sets.fAbortOnError = FALSE;
+
+    if (!SetCommState(port_handle, &port_sets)) {
+        printf("cfg settings failed\n");
+        CloseHandle(port_handle);
+        exit(0);
+    }
+
+    /*
+     * TIMEOUT ADJUSTMENT:
+     * We use MAXDWORD for ReadIntervalTimeout to create a non-blocking 
+     * read. This is how Linux handles it and is much more stable 
+     * for bit-banging protocols like PIC programming.
+     */
+    timeout_sets.ReadIntervalTimeout         = MAXDWORD; 
+    timeout_sets.ReadTotalTimeoutMultiplier  = 0;
+    timeout_sets.ReadTotalTimeoutConstant    = 0;
+    timeout_sets.WriteTotalTimeoutMultiplier = 0;
+    timeout_sets.WriteTotalTimeoutConstant   = 50;
+
+    if (!SetCommTimeouts(port_handle, &timeout_sets)) {
+        printf("timeout settings failed\n");
+        CloseHandle(port_handle);
+        exit(0);
+    }
+
+    // Final purge to ensure we start at the exact first byte of the protocol
+    PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
+
+    // Respect the -s delay for Arduino stabilization
+    if (sleep_time > 0) {
+        Sleep(sleep_time);
+    }
 }
+
 void putByte(int byte) {
 	int n;
 	if (verbose > 3)
