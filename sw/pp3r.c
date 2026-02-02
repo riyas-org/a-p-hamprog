@@ -77,6 +77,7 @@ void initSerialPort() {
 	baudRate = B57600;
 	if (verbose > 2)
 		printf("Opening: %s at %d\n", COM, baudRate);
+	fflush(stdout);
 	com = open(COM, O_RDWR | O_NOCTTY | O_NDELAY);
 	if (com < 0)
 		comErr("Failed to open serial port");
@@ -1110,9 +1111,13 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
 
 	if (verbose > 2)
 		printf("Opening filename %s \n", filename);
+	fflush(stdout);
 	FILE *sf = fopen(filename, "r");
-	if (sf == 0)
-		return -1;
+	if (sf == NULL) {
+	    fprintf(stderr, "Error opening %s: %s\n", filename, strerror(errno));
+		fflush(stdout);
+	    return -1;
+	}
 
 	// Detect family for legacy config mapping
 	if (chip_family == CF_P16F_A || chip_family == CF_P16F_B ||
