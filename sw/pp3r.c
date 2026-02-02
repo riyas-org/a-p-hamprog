@@ -151,11 +151,11 @@ int getByte() {
 HANDLE port_handle;
 
 void initSerialPort() {
-    char mode[40], portname[20];
+    char portname[64]; // Increased size for safety
     COMMTIMEOUTS timeout_sets;
     DCB port_sets;
 
-    // Format the port name for Windows (handles COM10 and above correctly)
+    // Standard Windows formatting for COM ports
     snprintf(portname, sizeof(portname), "\\\\.\\%s", COM);
 
     port_handle = CreateFileA(portname, 
@@ -171,47 +171,34 @@ void initSerialPort() {
         exit(0);
     }
 
-    // Allocate internal driver buffers
-    SetupComm(port_handle, 4096, 4096);
-
-    // Initial wipe of the hardware chip's buffers
+    // 1. CLEAR THE HARDWARE
+    // This is the "Software Replug". It clears the USB chip's internal RAM.
+    SetupComm(port_handle, 4096, 4096); 
     PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
 
-    // Initialize DCB struct
+    // 2. CONFIGURE DCB MANUALLY
+    // We don't use BuildCommDCBA here because it can reset the flags we need to keep OFF.
     memset(&port_sets, 0, sizeof(port_sets));
     port_sets.DCBlength = sizeof(port_sets);
-
-    // Get current driver state
+    
     if (!GetCommState(port_handle, &port_sets)) {
-        printf("failed to get dcb state\n");
         CloseHandle(port_handle);
         exit(0);
     }
 
-    // Apply basic baud/parity settings
-    strcpy(mode, "baud=57600 data=8 parity=n stop=1");
-    if (!BuildCommDCBA(mode, &port_sets)) {
-        printf("dcb build failed\n");
-        CloseHandle(port_handle);
-        exit(0);
-    }
+    port_sets.BaudRate = CBR_57600;
+    port_sets.ByteSize = 8;
+    port_sets.StopBits = ONESTOPBIT;
+    port_sets.Parity   = NOPARITY;
 
-    /* * CRITICAL FIX FOR WINDOWS CORRUPTION:
-     * Manually override DCB flags to disable all flow control. 
-     * Windows drivers often default these to TRUE, which causes 
-     * the port to "hang" or "buffer lag" after the first run.
-     */
+    // Disabling these is what stops the "corruption" on run #2
     port_sets.fBinary      = TRUE;
-    port_sets.fDtrControl  = DTR_CONTROL_DISABLE; // Prevents Arduino auto-reset hang
-    port_sets.fRtsControl  = RTS_CONTROL_DISABLE; // Prevents hardware flow control hang
+    port_sets.fDtrControl  = DTR_CONTROL_DISABLE;
+    port_sets.fRtsControl  = RTS_CONTROL_DISABLE;
     port_sets.fOutxCtsFlow = FALSE;
     port_sets.fOutxDsrFlow = FALSE;
-    port_sets.fDsrSensitivity = FALSE;
-    port_sets.fOutX        = FALSE;               // Disable XON/XOFF transmit
-    port_sets.fInX         = FALSE;                // Disable XON/XOFF receive
-    port_sets.fErrorChar   = FALSE;
-    port_sets.fNull        = FALSE;
-    port_sets.fAbortOnError = FALSE;
+    port_sets.fOutX        = FALSE;
+    port_sets.fInX         = FALSE;
 
     if (!SetCommState(port_handle, &port_sets)) {
         printf("cfg settings failed\n");
@@ -219,12 +206,8 @@ void initSerialPort() {
         exit(0);
     }
 
-    /*
-     * TIMEOUT ADJUSTMENT:
-     * We use MAXDWORD for ReadIntervalTimeout to create a non-blocking 
-     * read. This is how Linux handles it and is much more stable 
-     * for bit-banging protocols like PIC programming.
-     */
+    // 3. SET TIMEOUTS
+    // MAXDWORD makes it non-blocking, matching the Linux behavior.
     timeout_sets.ReadIntervalTimeout         = MAXDWORD; 
     timeout_sets.ReadTotalTimeoutMultiplier  = 0;
     timeout_sets.ReadTotalTimeoutConstant    = 0;
@@ -232,18 +215,14 @@ void initSerialPort() {
     timeout_sets.WriteTotalTimeoutConstant   = 50;
 
     if (!SetCommTimeouts(port_handle, &timeout_sets)) {
-        printf("timeout settings failed\n");
         CloseHandle(port_handle);
         exit(0);
     }
 
-    // Final purge to ensure we start at the exact first byte of the protocol
+    // Final purge to ensure the first byte sent is the first byte received
     PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
-
-    // Respect the -s delay for Arduino stabilization
-    if (sleep_time > 0) {
-        Sleep(sleep_time);
-    }
+    
+    if (sleep_time > 0) Sleep(sleep_time);
 }
 
 void putByte(int byte) {
