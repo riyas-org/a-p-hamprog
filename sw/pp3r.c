@@ -1173,7 +1173,6 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
 	return 0;
 }
 */
-
 int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
     char *line = NULL;
     unsigned char line_content[128];
@@ -1188,8 +1187,7 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
     
     // Open in binary mode to prevent CRLF translation issues
     FILE *sf = fopen(filename, "rb"); 
-    if (sf == 0)
-        return -1;
+    if (sf == NULL) return -1;
 
     if (chip_family == CF_P16F_A || chip_family == CF_P16F_B ||
         chip_family == CF_P16F_C || chip_family == CF_P16F_D) {
@@ -1197,17 +1195,21 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
     }
 
     while ((read = getlinex(&line, &len, sf)) != -1) {
-        // 1. Sanitize the line: Remove \r and \n from the end
+        // Sanitize the line: Remove \r and \n from the end
         while (read > 0 && (line[read - 1] == '\n' || line[read - 1] == '\r')) {
             line[--read] = '\0';
         }
 
-        if (read == 0 || line[0] != ':')
-            continue;
+        if (read == 0 || line[0] != ':') continue;
 
-        if (sscanf(line + 1, "%2X", &line_len) != 1) continue;
-        if (sscanf(line + 3, "%4X", &line_address) != 1) continue;
-        if (sscanf(line + 7, "%2X", &line_type) != 1) continue;
+        // Atomic header parse - prevents half-read lines in large files
+        if (sscanf(line + 1, "%2X%4X%2X", &line_len, &line_address, &line_type) != 3) {
+            continue;
+        }
+
+        if (verbose > 3) {
+            printf("Line: len %02X, addr %04X, type %02X\n", line_len, line_address, line_type);
+        }
 
         effective_address = line_address + (65536 * line_address_offset);
 
@@ -1225,11 +1227,11 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
                 }
             }
 
-            // 2. Hardened Configuration Mapping
+            // HARDENED CONFIG MAPPING:
+            // Only map to config buffer if we are in segment 0x0001 (where 0x8000 resides)
             if (line_address_offset == 0x01 && line_address >= 0x000E && p16_cfg == 1) {
                 for (i = 0; i < line_len; i++) {
                     int cfg_idx = line_address + i - 0x0E;
-                    // Prevent writing past the 32-byte config buffer
                     if (cfg_idx >= 0 && cfg_idx < CONFIG_LEN) {
                         config[cfg_idx] = line_content[i];
                     }
@@ -1238,7 +1240,8 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
         } else if (line_type == 4) { // EXTENDED LINEAR ADDRESS
             sscanf(line + 9, "%4X", &line_address_offset);
             if (verbose > 2)
-                printf("Address Offset updated to 0x%04X\n", line_address_offset);
+                printf("Address Offset updated to 0x%04X (Effective: 0x%08X)\n", 
+                       line_address_offset, line_address_offset << 16);
         } else if (line_type == 1) { // END OF FILE
             break;
         }
@@ -1248,6 +1251,7 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
     if (line) free(line);
     return 0;
 }
+
 
 int main(int argc, char *argv[]) {
 	int i, j, pages_performed, config, econfig, hex_ok;
@@ -1306,12 +1310,14 @@ int main(int argc, char *argv[]) {
 
 	// This stops the mask from hitting Config (at index 65,550)
 	for (i = 0; i < (flash_size * 2); i++) {
-		if ((i % 2) != 0)
-			file_image[i] = 0x3F & file_image[i];
+	    if ((i % 2) != 0)
+	        file_image[i] = 0x3F & file_image[i]; 
 	}
-	// inject config
-	for (i = 0; i < 10; i++)
-		file_image[2 * 0x8007 + i] = config_bytes[i];
+	
+	// 2. Inject Config LAST (so it doesn't get masked)
+	for (i = 0; i < 10; i++) {
+	    file_image[2 * 0x8007 + i] = config_bytes[i];
+	}
 
 	prog_enter_progmode(); // enter programming mode and probe the target
 	i = prog_get_device_id();
