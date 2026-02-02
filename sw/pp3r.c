@@ -1100,6 +1100,7 @@ int p16a_program_pagex(unsigned int ptr, unsigned char num,
 //*********************************************************************************//
 //*********************************************************************************//
 //*********************************************************************************//
+/*
 int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
 	char *line = NULL;
 	unsigned char line_content[128];
@@ -1171,81 +1172,83 @@ int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
 		free(line);
 	return 0;
 }
+*/
 
-/*
-int parse_hex_old (char * filename, unsigned char * progmem, unsigned char *
-config)
-    {
-    char * line = NULL;
+int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
+    char *line = NULL;
     unsigned char line_content[128];
     size_t len = 0;
-    int i,temp, read,line_len, line_type, line_address,
-line_address_offset,effective_address; int p16_cfg = 0; if (verbose>2) printf
-("Opening filename %s \n", filename); FILE* sf = fopen(filename, "r"); if
-(sf==0) return -1; line_address_offset = 0; if (chip_family==CF_P16F_A) p16_cfg
-= 1; if (chip_family==CF_P16F_B) p16_cfg = 1; if (chip_family==CF_P16F_C)
-p16_cfg = 1; if (chip_family==CF_P16F_D) p16_cfg = 1;
+    int i, temp, read, line_len, line_type, line_address;
+    int line_address_offset = 0;
+    int effective_address;
+    int p16_cfg = 0;
 
-    if (verbose>2) printf ("File open\n");
-    while ((read =  getlinex(&line, &len, sf)) != -1)
-        {
-        if (verbose>2) printf("\nRead %d chars: %s",read,line);
-        if (line[0]!=':')
-            {
-            if (verbose>1) printf("--- : invalid\n");
-            return -1;
-            }
-        sscanf(line+1,"%2X",&line_len);
-        sscanf(line+3,"%4X",&line_address);
-        sscanf(line+7,"%2X",&line_type);
-        effective_address = line_address+(65536*line_address_offset);
-        if (verbose>2) printf("Line len %d B, type %d, address 0x%4.4x offset
-0x%4.4x, EFF
-0x%6.6x\n",line_len,line_type,line_address,line_address_offset,effective_address);
-        if (line_type==0)
-            {
-            for (i=0; i<line_len; i++)
-                {
-                sscanf(line+9+i*2,"%2X",&temp);
-                line_content[i] = temp;
-                }
-            if (effective_address<flash_size)
-                {
-                if (verbose>2) printf("PM ");
-                for (i=0; i<line_len; i++) progmem[effective_address+i] =
-line_content[i];
-                }
-            if
-((line_address_offset==0x30)&((chip_family==CF_P18F_A)|(chip_family==CF_P18F_D)|(chip_family==CF_P18F_E)|(chip_family==CF_P18F_F)|(chip_family==CF_P18F_Q)))
-                {
-                if (verbose>2) printf("CB ");
-                for (i=0; i<line_len; i++) config[i] = line_content[i];
-                }
-            if
-((chip_family==CF_P18F_B)&(effective_address==(flash_size-config_size)))
-                {
-                if (verbose>2) printf("CB ");
-                for (i=0; i<line_len; i++) config[i] = line_content[i];
-                }
-            if ((line_address_offset==0x01)&(p16_cfg==1))
-                {
-                if (verbose>2) printf("CB ");
-                for (i=0; i<line_len; i++) config[line_address+i-0x0E] =
-line_content[i];
-                }
-            }
-        if (line_type==4)
-            {
-            sscanf(line+9,"%4X",&line_address_offset);
-            }
-        if (verbose>2) for (i=0; i<line_len; i++)
-printf("%2.2X",line_content[i]); if (verbose>2) printf("\n");
-        }
-    fclose(sf);
-    return 0;
+    if (verbose > 2)
+        printf("Opening filename %s \n", filename);
+    
+    // Open in binary mode to prevent CRLF translation issues
+    FILE *sf = fopen(filename, "rb"); 
+    if (sf == 0)
+        return -1;
+
+    if (chip_family == CF_P16F_A || chip_family == CF_P16F_B ||
+        chip_family == CF_P16F_C || chip_family == CF_P16F_D) {
+        p16_cfg = 1;
     }
 
-*/
+    while ((read = getlinex(&line, &len, sf)) != -1) {
+        // 1. Sanitize the line: Remove \r and \n from the end
+        while (read > 0 && (line[read - 1] == '\n' || line[read - 1] == '\r')) {
+            line[--read] = '\0';
+        }
+
+        if (read == 0 || line[0] != ':')
+            continue;
+
+        if (sscanf(line + 1, "%2X", &line_len) != 1) continue;
+        if (sscanf(line + 3, "%4X", &line_address) != 1) continue;
+        if (sscanf(line + 7, "%2X", &line_type) != 1) continue;
+
+        effective_address = line_address + (65536 * line_address_offset);
+
+        if (line_type == 0) { // DATA RECORD
+            for (i = 0; i < line_len; i++) {
+                if (sscanf(line + 9 + i * 2, "%2X", &temp) == 1) {
+                    line_content[i] = (unsigned char)temp;
+                }
+            }
+
+            // Store in progmem with bounds check
+            if (effective_address + line_len <= PROGMEM_LEN) {
+                for (i = 0; i < line_len; i++) {
+                    progmem[effective_address + i] = line_content[i];
+                }
+            }
+
+            // 2. Hardened Configuration Mapping
+            if (line_address_offset == 0x01 && line_address >= 0x000E && p16_cfg == 1) {
+                for (i = 0; i < line_len; i++) {
+                    int cfg_idx = line_address + i - 0x0E;
+                    // Prevent writing past the 32-byte config buffer
+                    if (cfg_idx >= 0 && cfg_idx < CONFIG_LEN) {
+                        config[cfg_idx] = line_content[i];
+                    }
+                }
+            }
+        } else if (line_type == 4) { // EXTENDED LINEAR ADDRESS
+            sscanf(line + 9, "%4X", &line_address_offset);
+            if (verbose > 2)
+                printf("Address Offset updated to 0x%04X\n", line_address_offset);
+        } else if (line_type == 1) { // END OF FILE
+            break;
+        }
+    }
+
+    fclose(sf);
+    if (line) free(line);
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
 	int i, j, pages_performed, config, econfig, hex_ok;
 	unsigned char *pm_point, *cm_point;
