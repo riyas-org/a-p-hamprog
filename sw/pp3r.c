@@ -151,80 +151,49 @@ int getByte() {
 HANDLE port_handle;
 
 void initSerialPort() {
-    char portname[64]; // Increased size for safety
-    COMMTIMEOUTS timeout_sets;
-    DCB port_sets;
 
-    // Standard Windows formatting for COM ports
-    snprintf(portname, sizeof(portname), "\\\\.\\%s", COM);
+	char mode[40], portname[20];
+	COMMTIMEOUTS timeout_sets;
+	DCB port_sets;
+	strcpy(portname, "\\\\.\\");
+	strcat(portname, COM);
+	port_handle =
+	    CreateFileA(portname, GENERIC_READ | GENERIC_WRITE, 0, /* no share  */
+	                NULL,                                      /* no security */
+	                OPEN_EXISTING, 0,                          /* no threads */
+	                NULL);                                     /* no templates */
+	if (port_handle == INVALID_HANDLE_VALUE) {
+		printf("unable to open port %s -> %s\n", COM, portname);
+		exit(0);
+	}
+	strcpy(mode, "baud=57600 data=8 parity=n stop=1");
+	memset(&port_sets, 0, sizeof(port_sets)); /* clear the new struct  */
+	port_sets.DCBlength = sizeof(port_sets);
 
-    port_handle = CreateFileA(portname, 
-                             GENERIC_READ | GENERIC_WRITE, 
-                             0,                          /* No sharing */
-                             NULL,                       /* No security */
-                             OPEN_EXISTING, 
-                             0,                          /* No overlapped I/O */
-                             NULL);
+	if (!BuildCommDCBA(mode, &port_sets)) {
+		printf("dcb settings failed\n");
+		CloseHandle(port_handle);
+		exit(0);
+	}
 
-    if (port_handle == INVALID_HANDLE_VALUE) {
-        printf("unable to open port %s -> %s\n", COM, portname);
-        exit(0);
-    }
+	if (!SetCommState(port_handle, &port_sets)) {
+		printf("cfg settings failed\n");
+		CloseHandle(port_handle);
+		exit(0);
+	}
 
-    // 1. CLEAR THE HARDWARE
-    // This is the "Software Replug". It clears the USB chip's internal RAM.
-    SetupComm(port_handle, 4096, 4096); 
-    PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
+	timeout_sets.ReadIntervalTimeout = 1;
+	timeout_sets.ReadTotalTimeoutMultiplier = 1000;
+	timeout_sets.ReadTotalTimeoutConstant = 1;
+	timeout_sets.WriteTotalTimeoutMultiplier = 1000;
+	timeout_sets.WriteTotalTimeoutConstant = 1;
 
-    // 2. CONFIGURE DCB MANUALLY
-    // We don't use BuildCommDCBA here because it can reset the flags we need to keep OFF.
-    memset(&port_sets, 0, sizeof(port_sets));
-    port_sets.DCBlength = sizeof(port_sets);
-    
-    if (!GetCommState(port_handle, &port_sets)) {
-        CloseHandle(port_handle);
-        exit(0);
-    }
-
-    port_sets.BaudRate = CBR_57600;
-    port_sets.ByteSize = 8;
-    port_sets.StopBits = ONESTOPBIT;
-    port_sets.Parity   = NOPARITY;
-
-    // Disabling these is what stops the "corruption" on run #2
-    port_sets.fBinary      = TRUE;
-    port_sets.fDtrControl  = DTR_CONTROL_DISABLE;
-    port_sets.fRtsControl  = RTS_CONTROL_DISABLE;
-    port_sets.fOutxCtsFlow = FALSE;
-    port_sets.fOutxDsrFlow = FALSE;
-    port_sets.fOutX        = FALSE;
-    port_sets.fInX         = FALSE;
-
-    if (!SetCommState(port_handle, &port_sets)) {
-        printf("cfg settings failed\n");
-        CloseHandle(port_handle);
-        exit(0);
-    }
-
-    // 3. SET TIMEOUTS
-    // MAXDWORD makes it non-blocking, matching the Linux behavior.
-    timeout_sets.ReadIntervalTimeout         = MAXDWORD; 
-    timeout_sets.ReadTotalTimeoutMultiplier  = 0;
-    timeout_sets.ReadTotalTimeoutConstant    = 0;
-    timeout_sets.WriteTotalTimeoutMultiplier = 0;
-    timeout_sets.WriteTotalTimeoutConstant   = 50;
-
-    if (!SetCommTimeouts(port_handle, &timeout_sets)) {
-        CloseHandle(port_handle);
-        exit(0);
-    }
-
-    // Final purge to ensure the first byte sent is the first byte received
-    PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
-    
-    if (sleep_time > 0) Sleep(sleep_time);
+	if (!SetCommTimeouts(port_handle, &timeout_sets)) {
+		printf("timeout settings failed\n");
+		CloseHandle(port_handle);
+		exit(0);
+	}
 }
-
 void putByte(int byte) {
 	int n;
 	if (verbose > 3)
@@ -1687,10 +1656,6 @@ int main(int argc, char *argv[]) {
 				printf("\nDone.\n");
 		}
 		prog_exit_progmode();
-		
-#if !defined(__linux__) && !defined(__APPLE__)
-    CloseHandle(port_handle);
-#endif
 		return 0;
 	}
 }
