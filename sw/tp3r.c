@@ -1151,16 +1151,22 @@ int main(int argc, char *argv[]) {
             p16a_program_page(2 * 0x8009, 2, 1); // Config 3
             p16a_program_page(2 * 0x800A, 2, 1); // Config 4
         }
-        // 3. Program EEPROM (Address 0xF000 onwards)
-        // Check if EEPROM area in buffer is not all 0xFF
-        int eeprom_base = 2 * 0xF000; 
-        printf("Programming EEPROM...");
-        for (int i = 0; i < 256; i++) {
-            if (progmem[eeprom_base + i] != 0xFF) {
-                p16a_write_eeprom(0xF000 + i, progmem[eeprom_base + i]);
-            }
-        }
-        printf(" Done.\n");  
+	// 3. Program EEPROM
+	int eeprom_base = 2 * 0xF000; // Byte offset in progmem
+	printf("Programming EEPROM...");
+	
+	// Note: Ensure your firmware or a preceding command sets the pointer 
+	// to the EEPROM start address (0xF000) before this loop.
+	for (int i = 0; i < 256; i++) {
+	    if (progmem[eeprom_base + i] != 0xFF) {
+	        p16a_write_eeprom(progmem[eeprom_base + i]); // Now matches your 1-argument requirement
+	    } else {
+	        // If skipping 0xFF, you may need to manually increment the PIC pointer 
+	        // to keep it in sync with 'i' if your firmware auto-increments on write.
+	        p16a_inc_pointer(1); 
+	    }
+	}
+	printf(" Done.\n");
 		
 	}
 		
