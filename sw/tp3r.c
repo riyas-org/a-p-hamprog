@@ -1078,7 +1078,7 @@ int main(int argc, char *argv[]) {
 		printf("ATU PIC16F1938 programmer, version %s\n", PP_VER);
 	if (verbose > 1)
 		printf("Opening serial port\n");
-	initSerialPort();
+	//initSerialPort();
 	if (sleep_time > 0) {
 		if (verbose > 0)
 			printf("Sleeping for %d ms while arduino bootloader expires\n",
@@ -1111,7 +1111,71 @@ int main(int argc, char *argv[]) {
 	pm_point = (unsigned char *)(&progmem);
 	cm_point = (unsigned char *)(&config_bytes);
 	hex_ok =  parse_hex(filename, pm_point); // parse and write content of hex file into buffers		  
+	
+       // Parse the HEX file into the unified progmem buffer
+    hex_ok = parse_hex(filename, pm_point); 
+
+    if (hex_ok == 0) {
+        FILE *log = fopen("buffer_map.log", "w");
+        printf("\n--- Unified Buffer Mapping Report ---\n");
+        if (log) fprintf(log, "Buffer Mapping for: %s\n\n", filename);
+
+        int in_block = 0;
+        int start_addr = 0;
+
+        for (int i = 0; i < PROGMEM_LEN; i++) {
+            if (progmem[i] != 0xFF) {
+                if (!in_block) {
+                    start_addr = i;
+                    in_block = 1;
+                }
+            } else {
+                if (in_block) {
+                    int end_addr = i - 1;
+                    char *region = "Unknown/Flash";
+                    
+                    // Logic to identify memory regions
+                    if (start_addr < 0x10000) {
+                        region = "FLASH MEMORY";
+                    } else if (start_addr >= 0x1000E && start_addr <= 0x10015) {
+                        region = "CONFIGURATION BITS";
+                    } else if (start_addr >= 0x1E000) {
+                        region = "EEPROM DATA";
+                    }
+
+                    // Print to Console
+                    printf("[%s]\n", region);
+                    printf("  Buffer Offset: 0x%05X to 0x%05X\n", start_addr, end_addr);
+                    printf("  PIC Word Addr: 0x%04X\n", start_addr / 2);
+                    
+                    // Save to Log File
+                    if (log) {
+                        fprintf(log, "[%s]\n", region);
+                        fprintf(log, "  Offset: 0x%05X - 0x%05X (Len: %d bytes)\n", 
+                                start_addr, end_addr, (end_addr - start_addr) + 1);
+                        fprintf(log, "  Data Snippet: ");
+                        for(int k = start_addr; k <= end_addr && k < start_addr + 8; k++)
+                            fprintf(log, "%02X ", progmem[k]);
+                        fprintf(log, "\n\n");
+                    }
+                    
+                    printf("---------------------------------------\n");
+                    in_block = 0;
+                }
+            }
+        }
+        if (log) {
+            printf("Detailed map saved to: buffer_map.log\n");
+            fclose(log);
+        }
+        printf("--- End of Report ---\n\n");
+    }
+
+
+       return 0;
+
 	prog_enter_progmode(); // enter programming mode and probe the target
+
 	i = prog_get_device_id();
 	if (i == devid_expected) {
 		if (verbose > 0)
