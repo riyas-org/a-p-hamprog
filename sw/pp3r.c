@@ -33,7 +33,7 @@
 #endif
 
 int setCPUtype(char *cpu);
-int parse_hex(char *filename, unsigned char *buffer);
+int parse_hex(char *filename, unsigned char *progmem, unsigned char *config);
 size_t getlinex(char **lineptr, size_t *n, FILE *stream);
 void comErr(char *fmt, ...);
 void flsprintf(FILE *f, char *fmt, ...);
