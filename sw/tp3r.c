@@ -564,6 +564,22 @@ int p16a_inc_pointer(unsigned char num) {
 	return 0;
 }
 
+int p16a_program_page(unsigned int ptr, unsigned char num,
+                       unsigned char slow) {
+	if (verbose > 2)
+		flsprintf(stdout, "Programming page of %d bytes at 0x%4.4x\n", num, ptr);
+	putByte(0x08);
+	putByte(num + 2);
+	putByte(num);
+	putByte(slow);
+
+	// CHANGE THIS LINE: Use progmem instead of file_image
+	putBytes(&progmem[ptr], num);
+
+	getByte();
+	return 0;
+}
+
 int p16a_read_page(unsigned char *data, unsigned char num) {
 	unsigned char i;
 	if (verbose > 2)
@@ -1029,22 +1045,6 @@ int prog_get_device_id(void) {
 	return 0;
 }
 
-int p16a_program_page(unsigned int ptr, unsigned char num,
-                       unsigned char slow) {
-	if (verbose > 2)
-		flsprintf(stdout, "Programming page of %d bytes at 0x%4.4x\n", num, ptr);
-	putByte(0x08);
-	putByte(num + 2);
-	putByte(num);
-	putByte(slow);
-
-	// CHANGE THIS LINE: Use progmem instead of file_image
-	putBytes(&progmem[ptr], num);
-
-	getByte();
-	return 0;
-}
-
 int parse_hex(char *filename, unsigned char *buffer) {
     FILE *sf = fopen(filename, "rb");
     if (!sf) return -1;
@@ -1157,7 +1157,7 @@ int main(int argc, char *argv[]) {
         printf("Programming EEPROM...");
         for (int i = 0; i < 256; i++) {
             if (progmem[eeprom_base + i] != 0xFF) {
-                p16a_program_eeprom(0xF000 + i, progmem[eeprom_base + i]);
+                p16a_write_eeprom(0xF000 + i, progmem[eeprom_base + i]);
             }
         }
         printf(" Done.\n");  
