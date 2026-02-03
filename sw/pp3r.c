@@ -33,7 +33,7 @@
 #endif
 
 int setCPUtype(char *cpu);
-int parse_hex(char *filename, unsigned char *progmem, unsigned char *config);
+int parse_hex(char *filename, unsigned char *progmem);
 size_t getlinex(char **lineptr, size_t *n, FILE *stream);
 void comErr(char *fmt, ...);
 void flsprintf(FILE *f, char *fmt, ...);
@@ -595,23 +595,6 @@ int p16a_inc_pointer(unsigned char num) {
 	return 0;
 }
 
-int p16a_program_page(unsigned int ptr, unsigned char num, unsigned char slow) {
-	//	unsigned char i;
-	if (verbose > 2)
-		flsprintf(stdout, "Programming page of %d bytes at 0x%4.4x\n", num, ptr);
-	putByte(0x08);
-	putByte(num + 2);
-	putByte(num);
-	putByte(slow);
-	/*
-	for (i=0;i<num;i++)
-	    putByte(file_image[ptr+i]);
-	    */
-	putBytes(&file_image[ptr], num);
-	getByte();
-	return 0;
-}
-
 int p16a_read_page(unsigned char *data, unsigned char num) {
 	unsigned char i;
 	if (verbose > 2)
@@ -687,6 +670,23 @@ int p16a_get_config(unsigned char n) {
 		flsprintf(stdout, "Getting config +%d - lo:%2.2x,hi:%2.2x = %4.4x\n", n,
 		          devid_lo, devid_hi, retval);
 	return retval;
+}
+
+int p16a_program_page(unsigned int ptr, unsigned char num, unsigned char slow) {
+	//	unsigned char i;
+	if (verbose > 2)
+		flsprintf(stdout, "Programming page of %d bytes at 0x%4.4x\n", num, ptr);
+	putByte(0x08);
+	putByte(num + 2);
+	putByte(num);
+	putByte(slow);
+	/*
+	for (i=0;i<num;i++)
+	    putByte(file_image[ptr+i]);
+	    */
+	putBytes(&file_image[ptr], num);
+	getByte();
+	return 0;
 }
 
 int p16a_program_config(void) {
