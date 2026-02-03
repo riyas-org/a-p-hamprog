@@ -341,23 +341,23 @@ int main (void)
                 usart_tx_b(0x8B); // Custom ACK for 0x0B
                 rx_state = 0;
                 break;
-      // --- NOTE IT WONT WORK WITH OLDER PIC16 CHIPS
-      case 0x0E: // Safe Single-Byte EEPROM Write
-              {
-                // rx_message[1] = data byte
-                // The pointer must already be set by command 0x04 or 0x09
-                uint8_t val = rx_message[1];
-                
-                isp_send(0x03, 6);   // Load Data for Data Memory
-                isp_send(val, 16);   
-                isp_send(0x08, 6);   // Begin Internally Timed Programming
-                _delay_ms(6);        // CRITICAL DELAY: Wait for EEPROM cell
-                isp_send(0x06, 6);   // Increment Address for next call
-                
-                usart_tx_b(0x8E);    // Send ACK so PC knows it can send the next byte
-                rx_state = 0;
-              }
-              break;       	
+	          // --- NOTE IT NEEDS IMPROVEMENT STRUGGLED A BIT :)
+	        case 0x0E: // Safe Single-Byte EEPROM Write
+	        {
+	          // rx_message[0] is 0x0E (Command)
+	          // rx_message[1] is 0x01 (Length)
+	          // rx_message[2] is the actual DATA byte
+	          uint8_t val = rx_message[2]; 
+	          isp_send(0x03, 6); // Load Data for Data Memory 
+	          uint16_t shifted_val = (uint16_t) val << 1;
+	          isp_send(shifted_val, 16); // Send the 16-bit word (0 + data + padding)
+	          isp_send(0x08, 6); // Begin Internally Timed Programming 
+	          _delay_ms(6); // Wait for EEPROM write cycle 
+	          isp_send(0x06, 6); // Increment Address for next call 
+	          usart_tx_b(0x8E); // Send ACK (0x8E) to PC 
+	          rx_state = 0;
+	        }
+	        break;   	
               
             default:
                 break;
