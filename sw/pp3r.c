@@ -1377,7 +1377,7 @@ int main(int argc, char *argv[]) {
 						printf("#");
 						fflush(stdout);
 					}
-				} else if (verbose > 2) {
+				} else if (verbose > 2&&(i%1024==0)) {
 					printf(".");
 					fflush(stdout);
 				}
@@ -1481,7 +1481,7 @@ int main(int argc, char *argv[]) {
 			fflush(stdout);
 
 			for (i = 0; i < 2 * flash_size; i = i + page_size) {
-				if (verbose > 1) {
+				if (verbose > 1&& (i%1024==0)) {
 					printf(".");
 					fflush(stdout);
 				}
@@ -1503,7 +1503,8 @@ int main(int argc, char *argv[]) {
 				p16c_write_cfg();
 
 			// --- EEPROM Programming --- TODO skipped verify now, just dump and check
-			if (chip_family == CF_P16F_A || chip_family == CF_P16F_D) {
+			//if (chip_family == CF_P16F_A || chip_family == CF_P16F_D) {
+			if (1==2) {
 				if (verbose > 0) {
 					printf("Writing EEPROM: ");
 					fflush(stdout);
@@ -1512,11 +1513,13 @@ int main(int argc, char *argv[]) {
 				if (chip_family == CF_P16F_D) {
 					p16d_set_pointer(0xf000);
 				} else {
+				    //dirty fix as out pic16f1938 is put in group A
 					p16a_rst_pointer();
 					p16a_load_config();
-					p16a_inc_pointer(7); // Standard path to EEPROM for P16F_A
+					//p16a_inc_pointer(7); // Standard path to EEPROM for P16F_A
+					
 				}
-
+				
 				// 2. Write 256 bytes from the progmem buffer
 				for (i = 0; i < 256; i++) {
 					if (!p16a_write_eeprom(progmem[0x1E000 + i])) {
@@ -1545,7 +1548,7 @@ int main(int argc, char *argv[]) {
 			        (chip_family == CF_P16F_D))
 				p16a_rst_pointer();
 			for (i = 0; i < 2 * flash_size; i = i + page_size) {
-				if (verbose > 1) {
+				if (verbose > 1 && (i%1024==0)) {
 					printf(".");
 					fflush(stdout);
 				}
@@ -1645,7 +1648,7 @@ int main(int argc, char *argv[]) {
 				for (j = 0; j < page_size; j += 16)
 					write_hex_line(hf, 16, i + j, 0, &tdat[j]);
 
-				if (verbose > 1) {
+				if (verbose > 1 && (i%1024==0)) {
 					printf(".");
 					fflush(stdout);
 				}
