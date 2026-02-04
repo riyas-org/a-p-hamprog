@@ -56,6 +56,12 @@ To enable HVP support, integrate an optocoupler and a boost converter (e.g., MT3
 To program a **PIC16F1938** (standard LVP):
 `./pp3r -c /dev/ttyACM0 -t 16f1938 -s 2000 file.hex`
 
+Reading/dumping hex On Windows
+`pp3r_x86_64.exe -r -s 2000 -c COM3 -v2 -t 16f1938`
+
+Writing hex on Windows
+`pp3r_x86_64.exe -s 2000 -c COM3 -v2 -t 16f1938 atu_100_fw_EXT_32_oled_lvp.hex`
+
 To enable **High Voltage Mode** (triggers the A3 optocoupler):
 `./pp3r -c /dev/ttyACM0 -h -t 16f1938 file.hex -s 2000`
 
