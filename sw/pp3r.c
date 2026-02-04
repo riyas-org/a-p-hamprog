@@ -1046,73 +1046,246 @@ int p16a_program_pagex(unsigned int ptr, unsigned char num,
 //               hex parse and main function
 //*********************************************************************************//
 
-int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
-	char *line = NULL;
-	unsigned char line_content[128];
-	size_t len = 0;
-	int i, temp, read, line_len, line_type, line_address;
-	int line_address_offset = 0;
-	int effective_address;
-	int p16_cfg = 0;
+#include <ctype.h>
 
-	if (verbose > 2)
-		printf("Opening filename %s \n", filename);
-	FILE *sf = fopen(filename, "r");
-	if (sf == 0)
-		return -1;
-
-	// Detect family for legacy config mapping
-	if (chip_family == CF_P16F_A || chip_family == CF_P16F_B ||
-	        chip_family == CF_P16F_C || chip_family == CF_P16F_D) {
-		p16_cfg = 1;
-	}
-
-	while ((read = getlinex(&line, &len, sf)) != -1) {
-		if (line[0] != ':')
-			continue;
-
-		sscanf(line + 1, "%2X", &line_len);
-		sscanf(line + 3, "%4X", &line_address);
-		sscanf(line + 7, "%2X", &line_type);
-
-		// Calculate address immediately for sequence independence
-		effective_address = line_address + (65536 * line_address_offset);
-
-		if (line_type == 0) { // DATA RECORD
-			for (i = 0; i < line_len; i++) {
-				sscanf(line + 9 + i * 2, "%2X", &temp);
-				line_content[i] = temp;
-			}
-
-			// Store in progmem buffer (covers Flash and EEPROM ranges)
-			if (effective_address + line_len <= PROGMEM_LEN) {
-				for (i = 0; i < line_len; i++) {
-					progmem[effective_address + i] = line_content[i];
-				}
-			}
-
-			// Handle PIC16 Configuration bits specifically (Address 0x8007-0x800B)
-			// In many HEX files, this appears at effective address 0x1000E+
-			if (line_address_offset == 0x01 && line_address >= 0x000E &&
-			        p16_cfg == 1) {
-				for (i = 0; i < line_len; i++) {
-					config[line_address + i - 0x0E] = line_content[i];
-				}
-			}
-		} else if (line_type == 4) { // EXTENDED LINEAR ADDRESS
-			sscanf(line + 9, "%4X", &line_address_offset);
-			if (verbose > 2)
-				printf("Address Offset updated to 0x%04X\n", line_address_offset);
-		} else if (line_type == 1) { // END OF FILE
-			break;
-		}
-	}
-
-	fclose(sf);
-	if (line)
-		free(line);
-	return 0;
+/* Helper: parse two hex chars into a byte; return -1 on error */
+static int parse_hex_pair(const char *p) {
+    int v;
+    if (!p || !isxdigit((unsigned char)p[0]) || !isxdigit((unsigned char)p[1]))
+        return -1;
+    if (sscanf(p, "%2X", &v) != 1)
+        return -1;
+    return v & 0xFF;
 }
+
+/* Trim trailing CR/LF and whitespace in-place; returns new length */
+static int trim_trailing(char *s, int len) {
+    while (len > 0 && (s[len - 1] == '\n' || s[len - 1] == '\r' || isspace((unsigned char)s[len - 1]))) {
+        s[--len] = '\0';
+    }
+    return len;
+}
+
+/* Return 1 if the linear byte address range [eff_addr, eff_addr+len-1] likely maps to EEPROM.
+   Adjust the constants if your EEPROM lives elsewhere. */
+static int is_eeprom_range(unsigned long address_high, int addr16, int byte_count) {
+    unsigned long eff_addr = (address_high << 16) | (unsigned long)(addr16 & 0xFFFF);
+    unsigned long start = eff_addr;
+    unsigned long end = eff_addr + (unsigned long)byte_count - 1;
+    /* Example heuristic used in this project: EEPROM often appears near segment 0x0001 offset 0xE000
+       which yields linear addresses around 0x1E000. Adjust as necessary for your devices. */
+    if ((start <= 0x001E000UL && end >= 0x001E000UL) || (start >= 0x001E000UL && start < 0x001E100UL))
+        return 1;
+    /* Also detect segment-based mapping: if address_high==1 and addr16 >= 0xE000 */
+    if (address_high == 0x0001 && (addr16 & 0xFFFF) >= 0xE000) return 1;
+    return 0;
+    }
+
+
+/* Hardened parse_hex: robust Intel HEX parsing (types 00,01,02,04,05)
+   - filename: path to hex file
+   - progmem: buffer for linear byte-addressed image (size PROGMEM_LEN)
+   - config: buffer for config bytes (size CONFIG_LEN) filled for legacy PIC16 mapping
+*/
+int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
+    char *line = NULL;
+    size_t buflen = 0;
+    int read;
+    unsigned char line_content[512]; /* data buffer (large enough) */
+    unsigned int address_high = 0;   /* used for Extended Linear Address (upper 16 bits) */
+    int lineno = 0;
+    int p16_cfg = 0;
+
+    if (verbose > 2)
+        printf("Opening filename %s\n", filename);
+
+    FILE *sf = fopen(filename, "rb"); /* binary mode to avoid CRLF/Ctrl-Z issues on Windows */
+    if (sf == NULL) {
+        if (verbose > 0) fprintf(stderr, "Unable to open HEX file %s\n", filename);
+        return -1;
+    }
+
+    /* detect PIC16 families for legacy config mapping */
+    if (chip_family == CF_P16F_A || chip_family == CF_P16F_B ||
+        chip_family == CF_P16F_C || chip_family == CF_P16F_D) {
+        p16_cfg = 1;
+    }
+
+    while ((read = getlinex(&line, &buflen, sf)) != -1) {
+        lineno++;
+
+        if (read <= 0 || line == NULL) {
+            if (verbose > 3) printf("Line %d: empty, skipping\n", lineno);
+            continue;
+        }
+
+        /* Trim trailing CR/LF and whitespace (handles Windows CRLF) */
+        read = (int)strlen(line);
+        read = trim_trailing(line, read);
+
+        /* Skip leading whitespace */
+        char *p = line;
+        while (*p && isspace((unsigned char)*p)) p++;
+
+        /* Remove UTF-8 BOM if present at very start of the file */
+        if (lineno == 1 && (unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF) {
+            p += 3;
+        }
+
+        if (*p == '\0') {
+            if (verbose > 3) printf("Line %d: blank after trim, skipping\n", lineno);
+            continue;
+        }
+
+        if (*p != ':') {
+            if (verbose > 2) printf("Line %d: does not start with ':' - ignoring: %s\n", lineno, p);
+            continue;
+        }
+
+        int avail = (int)strlen(p);
+
+        /* Minimum header size check: :llaaaattcc -> 1+2+4+2+2 = 11 chars (no data) */
+        if (avail < 11) {
+            if (verbose > 0) fprintf(stderr, "Line %d: too short (%d chars), skipping\n", lineno, avail);
+            continue;
+        }
+
+        /* Read record length, address, type */
+        int byte_count = 0;
+        int addr16 = 0;
+        int rectype = 0;
+        if (sscanf(p + 1, "%2X%4X%2X", &byte_count, &addr16, &rectype) != 3) {
+            if (verbose > 0) fprintf(stderr, "Line %d: malformed header, skipping\n", lineno);
+            continue;
+        }
+
+        /* Validate that data + checksum chars exist */
+        int expected_chars = 1 + 2 + 4 + 2 + (2 * byte_count) + 2;
+        if (avail < expected_chars) {
+            if (verbose > 0) fprintf(stderr, "Line %d: claimed byte_count %d too large for line length %d, skipping\n", lineno, byte_count, avail);
+            continue;
+        }
+
+        /* Parse data bytes and checksum while computing checksum sum */
+        int sum = 0;
+        sum += byte_count & 0xFF;
+        sum += (addr16 >> 8) & 0xFF;
+        sum += addr16 & 0xFF;
+        sum += rectype & 0xFF;
+
+        /* Data pointer: after ":llaaaatt" -> position 9 (0-based) */
+        char *data_ptr = p + 9;
+        if (byte_count > (int)sizeof(line_content)) {
+            if (verbose > 0) fprintf(stderr, "Line %d: byte_count %d exceeds internal buffer %zu, skipping\n", lineno, byte_count, sizeof(line_content));
+            continue;
+        }
+
+        int bad_hex = 0;
+        for (int i = 0; i < byte_count; i++) {
+            int v = parse_hex_pair(data_ptr + i * 2);
+            if (v < 0) {
+                bad_hex = 1;
+                break;
+            }
+            line_content[i] = (unsigned char)v;
+            sum = (sum + (v & 0xFF)) & 0xFF;
+        }
+        if (bad_hex) {
+            if (verbose > 0) fprintf(stderr, "Line %d: invalid hex data, skipping\n", lineno);
+            continue;
+        }
+
+        /* Parse checksum */
+        char *chk_ptr = data_ptr + byte_count * 2;
+        int chk = parse_hex_pair(chk_ptr);
+        if (chk < 0) {
+            if (verbose > 0) fprintf(stderr, "Line %d: invalid checksum field, skipping\n", lineno);
+            continue;
+        }
+
+        
+		/* Validate checksum: sum + chk == 0 (mod 256) */
+		if (((sum + chk) & 0xFF) != 0) {    
+    		int eeprom_rec = is_eeprom_range(address_high, addr16, byte_count);		
+    		if ( eeprom_rec) {
+        		if (verbose > 0)
+            		fprintf(stderr, "Line %d: checksum mismatch but lenient+EEPROM -> ACCEPTING record (sum=0x%02X chk=0x%02X)\n",
+                    		lineno, sum, chk);       
+    		} else if(verbose > 0){    		                		
+            		fprintf(stderr, "Line %d: checksum mismatch (lenient mode) - accepting (sum=0x%02X chk=0x%02X)\n",
+                    		lineno, sum, chk);
+    		} else {
+        		if (verbose > 0)
+            		fprintf(stderr, "Line %d: checksum mismatch (sum=0x%02X chk=0x%02X), skipping\n", lineno, sum, chk);
+        		continue; /* strict mode: skip corrupted record */
+    		}
+		}	
+				
+
+        /* Handle record types */
+        if (rectype == 0) {
+            /* Data record: compute effective byte address */
+            unsigned long eff_addr = ((unsigned long)address_high << 16) | (unsigned long)addr16;
+
+            /* Bounds check then copy */
+            if (eff_addr + (unsigned long)byte_count <= (unsigned long)PROGMEM_LEN) {
+                memcpy(&progmem[eff_addr], line_content, byte_count);
+            } else {
+                if (verbose > 1) fprintf(stderr, "Line %d: data at 0x%08lX len %d out of PROGMEM range - skipping\n", lineno, eff_addr, byte_count);
+            }
+
+            /* Legacy PIC16 config mapping: many HEXs place config words at segment 1 offset 0x000E (i.e. byte addr 0x1000E) */
+            if (p16_cfg && address_high == 0x0001 && addr16 >= 0x000E) {
+                for (int i = 0; i < byte_count; i++) {
+                    long cfg_index = (long)addr16 + i - 0x000E;
+                    if (cfg_index >= 0 && cfg_index < CONFIG_LEN) {
+                        config[cfg_index] = line_content[i];
+                    } else {
+                        if (verbose > 3) fprintf(stderr, "Line %d: config index out of bounds %ld (skipped)\n", lineno, cfg_index);
+                    }
+                }
+            }
+
+        } else if (rectype == 1) {
+            /* End Of File */
+            if (verbose > 2) printf("Line %d: EOF record\n", lineno);
+            break;
+
+        } else if (rectype == 4) {
+            /* Extended Linear Address */
+            if (byte_count != 2) {
+                if (verbose > 0) fprintf(stderr, "Line %d: ELA record with length %d (expected 2), skipping\n", lineno, byte_count);
+                continue;
+            }
+            address_high = ((unsigned int)line_content[0] << 8) | (unsigned int)line_content[1];
+            if (verbose > 2) printf("Line %d: ELA -> 0x%04X\n", lineno, address_high);
+
+        } else if (rectype == 2) {
+            /* Extended Segment Address: segment * 16 gives the upper address bits */
+            if (byte_count != 2) {
+                if (verbose > 0) fprintf(stderr, "Line %d: ESA record with length %d (expected 2), skipping\n", lineno, byte_count);
+                continue;
+            }
+            unsigned int seg = ((unsigned int)line_content[0] << 8) | (unsigned int)line_content[1];
+            /* Convert segment (shift left 4) to an equivalent high 16-bit for linear use when possible */
+            /* seg << 4 is the upper bits; compute high 16 bits = (seg << 4) >> 16 -> effectively seg >> 12 */
+            address_high = (seg >> 12) & 0xFFFF;
+            if (verbose > 2) printf("Line %d: ESA raw seg=0x%04X -> address_high=0x%04X\n", lineno, seg, address_high);
+
+        } else if (rectype == 5) {
+            /* Start Linear Address record - presentational, we accept and ignore */
+            if (verbose > 3) printf("Line %d: Start Linear Address (type 05) ignored\n", lineno);
+        } else {
+            if (verbose > 2) printf("Line %d: unsupported record type %d, ignoring\n", lineno, rectype);
+        }
+    }
+
+    if (line) free(line);
+    fclose(sf);
+    if (verbose > 1) printf("parse_hex: finished (lines processed: %d)\n", lineno);
+    return 0;
+}
+
 
 void apply_safe_defaults(unsigned char *buffer) {
     // Config 1 Word (PIC Address 0x8007 -> Buffer Offset 0x1000E)
@@ -1146,7 +1319,7 @@ int main(int argc, char *argv[]) {
 		fflush(stdout);
 		sleep_ms(sleep_time);
 	}
-	// INSERT THE NEW CODE HERE:
+	
 	if (hv_programming) {
 		if (verbose > 0)
 			printf("Switching Arduino to High Voltage Mode...\n");
@@ -1161,7 +1334,8 @@ int main(int argc, char *argv[]) {
 			exit(1);
 		}
 	}
-
+	
+	
 	for (i = 0; i < PROGMEM_LEN; i++)
 		progmem[i] = 0xFF; // assume erased memories (0xFF)
 	for (i = 0; i < CONFIG_LEN; i++)
@@ -1173,8 +1347,11 @@ int main(int argc, char *argv[]) {
 	hex_ok =
 	    parse_hex(filename, pm_point,
 	              cm_point); // parse and write content of hex file into buffers
-
-
+	if (verbose > 0)              
+    printf("Passed parse_hex...with %d\n",hex_ok);
+    //quit
+	//return 0;
+   
 	for (i = 0; i < 70000; i++)
 		file_image[i] = progmem[i];
 
