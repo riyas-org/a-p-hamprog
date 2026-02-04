@@ -6,8 +6,8 @@ It provides a low-cost, open-source solution for flashing PIC MCUs using a ubiqu
 
 
 <p align="center">
-  <a href="https://github.com/riyas-org/a-p-hamprog/archive/refs/tags/v1.1.zip">
-    <img src="https://img.shields.io/badge/DOWNLOAD-v1.1%20Release-blue?style=for-the-badge&logo=github&logoColor=white" alt="Download v1.1">
+  <a href="https://github.com/riyas-org/a-p-hamprog/releases/download/v1.2/pp3r_windows_binary_v1.2.zip">
+    <img src="https://img.shields.io/badge/DOWNLOAD-v1.2%20Release-blue?style=for-the-badge&logo=github&logoColor=white" alt="Download v1.1">
   </a>
 </p>
 
