@@ -162,9 +162,16 @@ void initSerialPort() {
 		printf("unable to open port %s -> %s\n", COM, portname);
 		exit(0);
 	}
+	// Clear any stuck data from the previous run
+	SetupComm(port_handle, 4096, 4096);
+    	PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
+
 	strcpy(mode, "baud=57600 data=8 parity=n stop=1");
 	memset(&port_sets, 0, sizeof(port_sets)); /* clear the new struct  */
 	port_sets.DCBlength = sizeof(port_sets);
+	// CRITICAL: Prevent Windows from holding the Reset line
+    	port_sets.fDtrControl = DTR_CONTROL_DISABLE;
+    	port_sets.fRtsControl = RTS_CONTROL_DISABLE;
 
 	if (!BuildCommDCBA(mode, &port_sets)) {
 		printf("dcb settings failed\n");
@@ -189,26 +196,28 @@ void initSerialPort() {
 		CloseHandle(port_handle);
 		exit(0);
 	}
+	PurgeComm(port_handle, PURGE_TXCLEAR | PURGE_RXCLEAR);
 }
+
 void putByte(int byte) {
-	int n;
-	if (verbose > 3)
-		flsprintf(stdout, "TX: 0x%02X\n", byte);
-	WriteFile(port_handle, &byte, 1, (LPDWORD)((void *)&n), NULL);
-	if (n != 1)
-		comErr("Serial port failed to send a byte, write returned %d\n", n);
+    DWORD n;
+    unsigned char buf = (unsigned char)byte;
+    if (verbose > 3)
+        flsprintf(stdout, "TX: 0x%02X\n", byte);
+
+    if (!WriteFile(port_handle, &buf, 1, &n, NULL)) {
+        comErr("Windows Error: WriteFile failed with code %d\n", GetLastError());
+    }
+
+    if (n != 1)
+        comErr("Serial port failed to send a byte (Timeout). Write returned %d\n", n);
 }
 
 void putBytes(unsigned char *data, int len) {
-	/*
+	
 	int i;
 	for (i=0;i<len;i++)
 	    putByte(data[i]);
-	*/
-	int n;
-	WriteFile(port_handle, data, len, (LPDWORD)((void *)&n), NULL);
-	if (n != len)
-		comErr("Serial port failed to send a byte, write returned %d\n", n);
 }
 
 int getByte() {
@@ -222,6 +231,7 @@ int getByte() {
 	comErr("Serial port failed to receive a byte, read returned %d\n", n);
 	return -1; // never reached
 }
+
 #endif
 
 
@@ -1756,6 +1766,11 @@ int main(int argc, char *argv[]) {
 				printf("\nDone.\n");
 		}
 		prog_exit_progmode();
+#if !defined(__linux__) && !defined(__APPLE__)
+    if (port_handle != INVALID_HANDLE_VALUE) {
+        CloseHandle(port_handle);
+    }
+#endif
 		return 0;
 	}
 }
