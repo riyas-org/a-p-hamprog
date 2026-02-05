@@ -56,7 +56,7 @@ To enable HVP support, integrate an optocoupler and a boost converter (e.g., MT3
 To program a **PIC16F1938** (standard LVP):
 `./pp3r -c /dev/ttyACM0 -t 16f1938 -s 2000 file.hex`
 
-Reading/dumping hex On Windows
+Reading/dumping hex On Windows 
 `pp3r_x86_64.exe -r -s 2000 -c COM3 -v2 -t 16f1938`
 
 Writing hex on Windows
@@ -65,11 +65,19 @@ Writing hex on Windows
 To enable **High Voltage Mode** (triggers the A3 optocoupler):
 `./pp3r -c /dev/ttyACM0 -h -t 16f1938 file.hex -s 2000`
 
+On windows, the order of parameter is a bit critical, e.s.p keep file name as last argument
+But to read hex, keep -r dump_file_name.hex before -t 16f1938
+
 ### Key Options
 * `-h`: Enable High Voltage Programming (HVP) pulse.
 * `-c [PORT]`: Specify the serial port (e.g., COM30 or /dev/ttyACM0).
 * `-t [DEVICE]`: Target PIC model.
 * `-s [MS]`: Delay in milliseconds to allow the Arduino bootloader to timeout.
+
+### Extra options
+* `-e`: Skip eeprom write.
+* `-k`: Only eeprom write, skips FLASH.
+* `-n`: Skip FLASH verification.
 
 ---
 ![Test programmer breakoutboard](/hw/20260131_213336.jpg)
