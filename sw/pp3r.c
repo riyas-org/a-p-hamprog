@@ -1623,7 +1623,7 @@ int main(int argc, char *argv[]) {
 				config = p16a_get_config(7);
 				econfig = (((unsigned int)(file_image[2 * 0x8007])) << 0) +
 				          (((unsigned int)(file_image[2 * 0x8007 + 1])) << 8);
-				if (config == econfig) {
+				if ((config & 0x3FFF) == (econfig & 0x3FFF)){
 					if (verbose > 1)
 						printf("config 1 OK: %4.4X\n", config);
 				} else
@@ -1631,7 +1631,7 @@ int main(int argc, char *argv[]) {
 				config = p16a_get_config(8);
 				econfig = (((unsigned int)(file_image[2 * 0x8008])) << 0) +
 				          (((unsigned int)(file_image[2 * 0x8008 + 1])) << 8);
-				if (config == econfig) {
+				if ((config & 0x3FFF) == (econfig & 0x3FFF)) {
 					if (verbose > 1)
 						printf("config 2 OK: %4.4X\n", config);
 				} else
@@ -1650,7 +1650,7 @@ int main(int argc, char *argv[]) {
 					config = p16a_get_config(0x0a);
 					econfig = (((unsigned int)(file_image[2 * 0x800a])) << 0) +
 					          (((unsigned int)(file_image[2 * 0x800a + 1])) << 8);
-					if (config == econfig) {
+					if ((config & 0x3FFF) == (econfig & 0x3FFF)) {
 						if (verbose > 1)
 							printf("config 4 OK: %4.4X\n", config);
 					} else
