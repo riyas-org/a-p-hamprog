@@ -1581,10 +1581,10 @@ int main(int argc, char *argv[]) {
 				// 2. Write 256 bytes from the progmem buffer
 				for (i = 0; i < 256; i++) {
 					unsigned char e_data = progmem[0x1E000 + i];
-					if (i == 0) {
+					if (i == 0) 
         				p16a_write_eeprom(e_data); // First attempt (might be skipped/ignored)
 					//printf("EEPROM[%d] from Buffer[0x%X] = 0x%02X\n", i, 0x1E000 + i, progmem[0x1E000 + i]);
-					if (!p16a_write_eeprom(e_data) {
+					if (!p16a_write_eeprom(e_data)) {
 						if (verbose > 0)
 							fprintf(stderr, "\nEEPROM Write Failed at byte %d\n", i);
 						exit(1);
