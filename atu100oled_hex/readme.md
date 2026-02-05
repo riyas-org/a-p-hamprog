@@ -62,8 +62,15 @@ To attempt to backup existing firmware (remember to check config bytes manually!
 
 ```bash
 ./pp3r -c /dev/ttyUSB0 -s 2000 -t  16f1938 -r dump.hex
-
 ```
+
+### Windows Users
+
+A bit glitchy with parameter ordering. Keep last parameter as ` -t 16f1938` if no hex to flash is supplied.
+For reading hex, keep it as the first param `-r hex_dump.hex` 
+Keep  `[hex dump file name][delay][com port][extras -nphke][chip name][file to flash]`
+
+
 ---
 
 ## 🔧 Installation
