@@ -1569,7 +1569,7 @@ int main(int argc, char *argv[]) {
 					printf("Writing EEPROM: ");
 					fflush(stdout);
 				}
-				// 1. Set Pointer to EEPROM Start (0xF000)
+				// 1. Set Pointer to EEPROM Start (0xF000) dirty here as our pic16f1938 is in wrong group A
 				if (chip_family == CF_P16F_A) {
 					p16d_set_pointer(0xF000);
 				} else {
@@ -1577,10 +1577,15 @@ int main(int argc, char *argv[]) {
 					p16a_load_config();
 					p16a_inc_pointer(7); // Standard path to EEPROM for P16F_A
 				}
-
+				//dirty fix 
+				if (chip_family == CF_P16F_A) {
+				    p16d_set_pointer(0xf000);
+				    p16a_write_eeprom(0xFF); // Send a dummy byte to satisfy the "skipped" first slot
+				    p16d_set_pointer(0xf000); // Reset pointer back to the start
+				}
 				// 2. Write 256 bytes from the progmem buffer
 				for (i = 0; i < 256; i++) {
-					printf("EEPROM[%d] from Buffer[0x%X] = 0x%02X\n", i, 0x1E000 + i, progmem[0x1E000 + i]);
+					//printf("EEPROM[%d] from Buffer[0x%X] = 0x%02X\n", i, 0x1E000 + i, progmem[0x1E000 + i]);
 					if (!p16a_write_eeprom(progmem[0x1E000 + i])) {
 						if (verbose > 0)
 							fprintf(stderr, "\nEEPROM Write Failed at byte %d\n", i);
