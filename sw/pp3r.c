@@ -1580,15 +1580,26 @@ int main(int argc, char *argv[]) {
 				//dirty fix 
 				// 2. Write 256 bytes from the progmem buffer
 				for (i = 0; i < 256; i++) {
-					unsigned char e_data = progmem[0x1E000 + i];
-					if (i == 0) 
-        				p16a_write_eeprom(e_data); // First attempt (might be skipped/ignored)
-					//printf("EEPROM[%d] from Buffer[0x%X] = 0x%02X\n", i, 0x1E000 + i, progmem[0x1E000 + i]);
-					if (!p16a_write_eeprom(e_data)) {
-						if (verbose > 0)
-							fprintf(stderr, "\nEEPROM Write Failed at byte %d\n", i);
-						exit(1);
-					}
+				    unsigned char e_data = progmem[0x1E000 + i];
+				
+				    if (i == 0) {
+				        // 1. Write the first byte once (this might land in the wrong spot or be skipped)
+				        p16a_write_eeprom(e_data); 
+				        
+				        // 2. IMMEDIATELY force the pointer back to the start
+				        if (chip_family == CF_P16F_D) {
+				            p16d_set_pointer(0xf000); 
+				        }
+				        
+				        // 3. Write it again. Now the internal PC is guaranteed to be at 0xf000
+				        p16a_write_eeprom(e_data); 
+				    } else {
+				        // Normal path for all other bytes
+				        p16a_write_eeprom(e_data);
+				    }
+				
+				    if (verbose > 1) { printf("."); fflush(stdout); }
+				}
 					if (i % 32 == 0) {
 						if (verbose > 1)
 							printf(".");
