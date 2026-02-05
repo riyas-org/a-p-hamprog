@@ -1,20 +1,20 @@
 /* **************************************************************************
  * Project: pp3r - PIC Programmer for ATU-100
  * Author:  lb7ug
- * * Credits: Based on the original a-p-prog by Jaromir Sukuba 
+ * * Credits: Based on the original a-p-prog by Jaromir Sukuba
  *
- * Purpose: A quick-n-dirty weekend hobby project specifically made for 
+ * Purpose: A quick-n-dirty weekend hobby project specifically made for
  * programming PICs in the ATU-100 antenna tuner (PIC16F1938).
- * * ⚠️ DISCLAIMER:
+ * * DISCLAIMER:
  * - NO GUARANTEE: This is experimental software. Use at your own risk.
  * - VARIANT ISSUES: May not handle all PIC variants correctly.
- * - HEX DUMP WARNING: Dumping/Reading hex files may have issues with 
+ * - HEX DUMP WARNING: Dumping/Reading hex files may have issues with
  * Config Bytes. These often require manual correction in the HEX file.
  *
- * 🛠 CONTRIBUTIONS:
- * This is a hobbyist tool—feel free to modify, optimize, and improve! 
+ * CONTRIBUTIONS:
+ * This is a hobbyist tool-feel free to modify, optimize, and improve!
  * Pull requests on GitHub are highly encouraged.
- * https://github.com/riyas-org/a-p-hamprog 
+ * https://github.com/riyas-org/a-p-hamprog
  * ************************************************************************** */
 
 #include <ctype.h>
@@ -67,7 +67,7 @@ char *hex_out_name = "dump.hex";
 #define CF_P18F_G 10
 #define CF_P18F_Q 11
 
-int verbose = 1, verify = 1, program = 1, sleep_time = 0, readflash = 0;
+int verbose = 1, verify = 1, program = 1, sleep_time = 0, readflash = 0,eeprom =1,noeeprom=1;
 int hv_programming = 0;
 int devid_expected, devid_mask, baudRate, com, flash_size, page_size,
     chip_family, config_size;
@@ -164,14 +164,14 @@ void initSerialPort() {
 	}
 	// Clear any stuck data from the previous run
 	SetupComm(port_handle, 4096, 4096);
-    	PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
+	PurgeComm(port_handle, PURGE_TXABORT | PURGE_RXABORT | PURGE_TXCLEAR | PURGE_RXCLEAR);
 
 	strcpy(mode, "baud=57600 data=8 parity=n stop=1");
 	memset(&port_sets, 0, sizeof(port_sets)); /* clear the new struct  */
 	port_sets.DCBlength = sizeof(port_sets);
 	// CRITICAL: Prevent Windows from holding the Reset line
-    	port_sets.fDtrControl = DTR_CONTROL_DISABLE;
-    	port_sets.fRtsControl = RTS_CONTROL_DISABLE;
+	port_sets.fDtrControl = DTR_CONTROL_DISABLE;
+	port_sets.fRtsControl = RTS_CONTROL_DISABLE;
 
 	if (!BuildCommDCBA(mode, &port_sets)) {
 		printf("dcb settings failed\n");
@@ -200,24 +200,24 @@ void initSerialPort() {
 }
 
 void putByte(int byte) {
-    DWORD n;
-    unsigned char buf = (unsigned char)byte;
-    if (verbose > 3)
-        flsprintf(stdout, "TX: 0x%02X\n", byte);
+	DWORD n;
+	unsigned char buf = (unsigned char)byte;
+	if (verbose > 3)
+		flsprintf(stdout, "TX: 0x%02X\n", byte);
 
-    if (!WriteFile(port_handle, &buf, 1, &n, NULL)) {
-        comErr("Windows Error: WriteFile failed with code %d\n", GetLastError());
-    }
+	if (!WriteFile(port_handle, &buf, 1, &n, NULL)) {
+		comErr("Windows Error: WriteFile failed with code %d\n", GetLastError());
+	}
 
-    if (n != 1)
-        comErr("Serial port failed to send a byte (Timeout). Write returned %d\n", n);
+	if (n != 1)
+		comErr("Serial port failed to send a byte (Timeout). Write returned %d\n", n);
 }
 
 void putBytes(unsigned char *data, int len) {
-	
+
 	int i;
-	for (i=0;i<len;i++)
-	    putByte(data[i]);
+	for (i=0; i<len; i++)
+		putByte(data[i]);
 }
 
 int getByte() {
@@ -346,6 +346,8 @@ void printHelp() {
 	printf("  -t <cpu>     Target MCU (e.g., 16f1938)\n");
 	printf("  -r [name]    Read to Intel HEX (Default: dump.hex)\n");
 	printf("  -h           High Voltage Mode (Requires 9.5V HVP hardware)\n");
+	printf("  -e           Skip EEPROM writing)\n");
+	printf("  -k           Only EEPROM writing)\n");
 	printf("  -v <0-2>     Verbosity level\n\n");
 	printf("Note: HVP mode requires an external boost converter + optocoupler\n");
 	printf("circuit to provide ~9.5V to the MCLR pin.\n");
@@ -358,13 +360,19 @@ void printHelp() {
 void parseArgs(int argc, char *argv[]) {
 	int c;
 	// while ((c = getopt (argc, argv, "c:nps:t:v:b:r::h")) != -1)
-	while ((c = getopt(argc, argv, "c:nprs:t:v:b:h")) != -1) {
+	while ((c = getopt(argc, argv, "c:nprs:t:v:b:h:ek")) != -1) {
 		switch (c) {
 		case 'c':
 			COM = optarg;
 			break;
 		case 'n':
 			verify = 0;
+			break;
+		case 'e':
+			eeprom = 0;
+			break;
+		case 'k':
+			noeeprom = 0;
 			break;
 		case 'p':
 			program = 0;
@@ -1060,36 +1068,36 @@ int p16a_program_pagex(unsigned int ptr, unsigned char num,
 
 /* Helper: parse two hex chars into a byte; return -1 on error */
 static int parse_hex_pair(const char *p) {
-    int v;
-    if (!p || !isxdigit((unsigned char)p[0]) || !isxdigit((unsigned char)p[1]))
-        return -1;
-    if (sscanf(p, "%2X", &v) != 1)
-        return -1;
-    return v & 0xFF;
+	int v;
+	if (!p || !isxdigit((unsigned char)p[0]) || !isxdigit((unsigned char)p[1]))
+		return -1;
+	if (sscanf(p, "%2X", &v) != 1)
+		return -1;
+	return v & 0xFF;
 }
 
 /* Trim trailing CR/LF and whitespace in-place; returns new length */
 static int trim_trailing(char *s, int len) {
-    while (len > 0 && (s[len - 1] == '\n' || s[len - 1] == '\r' || isspace((unsigned char)s[len - 1]))) {
-        s[--len] = '\0';
-    }
-    return len;
+	while (len > 0 && (s[len - 1] == '\n' || s[len - 1] == '\r' || isspace((unsigned char)s[len - 1]))) {
+		s[--len] = '\0';
+	}
+	return len;
 }
 
 /* Return 1 if the linear byte address range [eff_addr, eff_addr+len-1] likely maps to EEPROM.
    Adjust the constants if your EEPROM lives elsewhere. */
 static int is_eeprom_range(unsigned long address_high, int addr16, int byte_count) {
-    unsigned long eff_addr = (address_high << 16) | (unsigned long)(addr16 & 0xFFFF);
-    unsigned long start = eff_addr;
-    unsigned long end = eff_addr + (unsigned long)byte_count - 1;
-    /* Example heuristic used in this project: EEPROM often appears near segment 0x0001 offset 0xE000
-       which yields linear addresses around 0x1E000. Adjust as necessary for your devices. */
-    if ((start <= 0x001E000UL && end >= 0x001E000UL) || (start >= 0x001E000UL && start < 0x001E100UL))
-        return 1;
-    /* Also detect segment-based mapping: if address_high==1 and addr16 >= 0xE000 */
-    if (address_high == 0x0001 && (addr16 & 0xFFFF) >= 0xE000) return 1;
-    return 0;
-    }
+	unsigned long eff_addr = (address_high << 16) | (unsigned long)(addr16 & 0xFFFF);
+	unsigned long start = eff_addr;
+	unsigned long end = eff_addr + (unsigned long)byte_count - 1;
+	/* Example heuristic used in this project: EEPROM often appears near segment 0x0001 offset 0xE000
+	   which yields linear addresses around 0x1E000. Adjust as necessary for your devices. */
+	if ((start <= 0x001E000UL && end >= 0x001E000UL) || (start >= 0x001E000UL && start < 0x001E100UL))
+		return 1;
+	/* Also detect segment-based mapping: if address_high==1 and addr16 >= 0xE000 */
+	if (address_high == 0x0001 && (addr16 & 0xFFFF) >= 0xE000) return 1;
+	return 0;
+}
 
 
 /* Hardened parse_hex: robust Intel HEX parsing (types 00,01,02,04,05)
@@ -1098,218 +1106,218 @@ static int is_eeprom_range(unsigned long address_high, int addr16, int byte_coun
    - config: buffer for config bytes (size CONFIG_LEN) filled for legacy PIC16 mapping
 */
 int parse_hex(char *filename, unsigned char *progmem, unsigned char *config) {
-    char *line = NULL;
-    size_t buflen = 0;
-    int read;
-    unsigned char line_content[512]; /* data buffer (large enough) */
-    unsigned int address_high = 0;   /* used for Extended Linear Address (upper 16 bits) */
-    int lineno = 0;
-    int p16_cfg = 0;
+	char *line = NULL;
+	size_t buflen = 0;
+	int read;
+	unsigned char line_content[512]; /* data buffer (large enough) */
+	unsigned int address_high = 0;   /* used for Extended Linear Address (upper 16 bits) */
+	int lineno = 0;
+	int p16_cfg = 0;
 
-    if (verbose > 2)
-        printf("Opening filename %s\n", filename);
+	if (verbose > 2)
+		printf("Opening filename %s\n", filename);
 
-    FILE *sf = fopen(filename, "rb"); /* binary mode to avoid CRLF/Ctrl-Z issues on Windows */
-    if (sf == NULL) {
-        if (verbose > 0) fprintf(stderr, "Unable to open HEX file %s\n", filename);
-        return -1;
-    }
+	FILE *sf = fopen(filename, "rb"); /* binary mode to avoid CRLF/Ctrl-Z issues on Windows */
+	if (sf == NULL) {
+		if (verbose > 0) fprintf(stderr, "Unable to open HEX file %s\n", filename);
+		return -1;
+	}
 
-    /* detect PIC16 families for legacy config mapping */
-    if (chip_family == CF_P16F_A || chip_family == CF_P16F_B ||
-        chip_family == CF_P16F_C || chip_family == CF_P16F_D) {
-        p16_cfg = 1;
-    }
+	/* detect PIC16 families for legacy config mapping */
+	if (chip_family == CF_P16F_A || chip_family == CF_P16F_B ||
+	        chip_family == CF_P16F_C || chip_family == CF_P16F_D) {
+		p16_cfg = 1;
+	}
 
-    while ((read = getlinex(&line, &buflen, sf)) != -1) {
-        lineno++;
+	while ((read = getlinex(&line, &buflen, sf)) != -1) {
+		lineno++;
 
-        if (read <= 0 || line == NULL) {
-            if (verbose > 3) printf("Line %d: empty, skipping\n", lineno);
-            continue;
-        }
+		if (read <= 0 || line == NULL) {
+			if (verbose > 3) printf("Line %d: empty, skipping\n", lineno);
+			continue;
+		}
 
-        /* Trim trailing CR/LF and whitespace (handles Windows CRLF) */
-        read = (int)strlen(line);
-        read = trim_trailing(line, read);
+		/* Trim trailing CR/LF and whitespace (handles Windows CRLF) */
+		read = (int)strlen(line);
+		read = trim_trailing(line, read);
 
-        /* Skip leading whitespace */
-        char *p = line;
-        while (*p && isspace((unsigned char)*p)) p++;
+		/* Skip leading whitespace */
+		char *p = line;
+		while (*p && isspace((unsigned char)*p)) p++;
 
-        /* Remove UTF-8 BOM if present at very start of the file */
-        if (lineno == 1 && (unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF) {
-            p += 3;
-        }
+		/* Remove UTF-8 BOM if present at very start of the file */
+		if (lineno == 1 && (unsigned char)p[0] == 0xEF && (unsigned char)p[1] == 0xBB && (unsigned char)p[2] == 0xBF) {
+			p += 3;
+		}
 
-        if (*p == '\0') {
-            if (verbose > 3) printf("Line %d: blank after trim, skipping\n", lineno);
-            continue;
-        }
+		if (*p == '\0') {
+			if (verbose > 3) printf("Line %d: blank after trim, skipping\n", lineno);
+			continue;
+		}
 
-        if (*p != ':') {
-            if (verbose > 2) printf("Line %d: does not start with ':' - ignoring: %s\n", lineno, p);
-            continue;
-        }
+		if (*p != ':') {
+			if (verbose > 2) printf("Line %d: does not start with ':' - ignoring: %s\n", lineno, p);
+			continue;
+		}
 
-        int avail = (int)strlen(p);
+		int avail = (int)strlen(p);
 
-        /* Minimum header size check: :llaaaattcc -> 1+2+4+2+2 = 11 chars (no data) */
-        if (avail < 11) {
-            if (verbose > 0) fprintf(stderr, "Line %d: too short (%d chars), skipping\n", lineno, avail);
-            continue;
-        }
+		/* Minimum header size check: :llaaaattcc -> 1+2+4+2+2 = 11 chars (no data) */
+		if (avail < 11) {
+			if (verbose > 0) fprintf(stderr, "Line %d: too short (%d chars), skipping\n", lineno, avail);
+			continue;
+		}
 
-        /* Read record length, address, type */
-        int byte_count = 0;
-        int addr16 = 0;
-        int rectype = 0;
-        if (sscanf(p + 1, "%2X%4X%2X", &byte_count, &addr16, &rectype) != 3) {
-            if (verbose > 0) fprintf(stderr, "Line %d: malformed header, skipping\n", lineno);
-            continue;
-        }
+		/* Read record length, address, type */
+		int byte_count = 0;
+		int addr16 = 0;
+		int rectype = 0;
+		if (sscanf(p + 1, "%2X%4X%2X", &byte_count, &addr16, &rectype) != 3) {
+			if (verbose > 0) fprintf(stderr, "Line %d: malformed header, skipping\n", lineno);
+			continue;
+		}
 
-        /* Validate that data + checksum chars exist */
-        int expected_chars = 1 + 2 + 4 + 2 + (2 * byte_count) + 2;
-        if (avail < expected_chars) {
-            if (verbose > 0) fprintf(stderr, "Line %d: claimed byte_count %d too large for line length %d, skipping\n", lineno, byte_count, avail);
-            continue;
-        }
+		/* Validate that data + checksum chars exist */
+		int expected_chars = 1 + 2 + 4 + 2 + (2 * byte_count) + 2;
+		if (avail < expected_chars) {
+			if (verbose > 0) fprintf(stderr, "Line %d: claimed byte_count %d too large for line length %d, skipping\n", lineno, byte_count, avail);
+			continue;
+		}
 
-        /* Parse data bytes and checksum while computing checksum sum */
-        int sum = 0;
-        sum += byte_count & 0xFF;
-        sum += (addr16 >> 8) & 0xFF;
-        sum += addr16 & 0xFF;
-        sum += rectype & 0xFF;
+		/* Parse data bytes and checksum while computing checksum sum */
+		int sum = 0;
+		sum += byte_count & 0xFF;
+		sum += (addr16 >> 8) & 0xFF;
+		sum += addr16 & 0xFF;
+		sum += rectype & 0xFF;
 
-        /* Data pointer: after ":llaaaatt" -> position 9 (0-based) */
-        char *data_ptr = p + 9;
-        if (byte_count > (int)sizeof(line_content)) {
-            if (verbose > 0) fprintf(stderr, "Line %d: byte_count %d exceeds internal buffer %zu, skipping\n", lineno, byte_count, sizeof(line_content));
-            continue;
-        }
+		/* Data pointer: after ":llaaaatt" -> position 9 (0-based) */
+		char *data_ptr = p + 9;
+		if (byte_count > (int)sizeof(line_content)) {
+			if (verbose > 0) fprintf(stderr, "Line %d: byte_count %d exceeds internal buffer %zu, skipping\n", lineno, byte_count, sizeof(line_content));
+			continue;
+		}
 
-        int bad_hex = 0;
-        for (int i = 0; i < byte_count; i++) {
-            int v = parse_hex_pair(data_ptr + i * 2);
-            if (v < 0) {
-                bad_hex = 1;
-                break;
-            }
-            line_content[i] = (unsigned char)v;
-            sum = (sum + (v & 0xFF)) & 0xFF;
-        }
-        if (bad_hex) {
-            if (verbose > 0) fprintf(stderr, "Line %d: invalid hex data, skipping\n", lineno);
-            continue;
-        }
+		int bad_hex = 0;
+		for (int i = 0; i < byte_count; i++) {
+			int v = parse_hex_pair(data_ptr + i * 2);
+			if (v < 0) {
+				bad_hex = 1;
+				break;
+			}
+			line_content[i] = (unsigned char)v;
+			sum = (sum + (v & 0xFF)) & 0xFF;
+		}
+		if (bad_hex) {
+			if (verbose > 0) fprintf(stderr, "Line %d: invalid hex data, skipping\n", lineno);
+			continue;
+		}
 
-        /* Parse checksum */
-        char *chk_ptr = data_ptr + byte_count * 2;
-        int chk = parse_hex_pair(chk_ptr);
-        if (chk < 0) {
-            if (verbose > 0) fprintf(stderr, "Line %d: invalid checksum field, skipping\n", lineno);
-            continue;
-        }
+		/* Parse checksum */
+		char *chk_ptr = data_ptr + byte_count * 2;
+		int chk = parse_hex_pair(chk_ptr);
+		if (chk < 0) {
+			if (verbose > 0) fprintf(stderr, "Line %d: invalid checksum field, skipping\n", lineno);
+			continue;
+		}
 
-        
+
 		/* Validate checksum: sum + chk == 0 (mod 256) */
-		if (((sum + chk) & 0xFF) != 0) {    
-    		int eeprom_rec = is_eeprom_range(address_high, addr16, byte_count);		
-    		if ( eeprom_rec) {
-        		if (verbose > 0)
-            		fprintf(stderr, "Line %d: checksum mismatch but lenient+EEPROM -> ACCEPTING record (sum=0x%02X chk=0x%02X)\n",
-                    		lineno, sum, chk);       
-    		} else if(verbose > 0){    		                		
-            		fprintf(stderr, "Line %d: checksum mismatch (lenient mode) - accepting (sum=0x%02X chk=0x%02X)\n",
-                    		lineno, sum, chk);
-    		} else {
-        		if (verbose > 0)
-            		fprintf(stderr, "Line %d: checksum mismatch (sum=0x%02X chk=0x%02X), skipping\n", lineno, sum, chk);
-        		continue; /* strict mode: skip corrupted record */
-    		}
-		}	
-				
+		if (((sum + chk) & 0xFF) != 0) {
+			int eeprom_rec = is_eeprom_range(address_high, addr16, byte_count);
+			if ( eeprom_rec) {
+				if (verbose > 0)
+					fprintf(stderr, "Line %d: checksum mismatch but lenient+EEPROM -> ACCEPTING record (sum=0x%02X chk=0x%02X)\n",
+					        lineno, sum, chk);
+			} else if(verbose > 0) {
+				fprintf(stderr, "Line %d: checksum mismatch (lenient mode) - accepting (sum=0x%02X chk=0x%02X)\n",
+				        lineno, sum, chk);
+			} else {
+				if (verbose > 0)
+					fprintf(stderr, "Line %d: checksum mismatch (sum=0x%02X chk=0x%02X), skipping\n", lineno, sum, chk);
+				continue; /* strict mode: skip corrupted record */
+			}
+		}
 
-        /* Handle record types */
-        if (rectype == 0) {
-            /* Data record: compute effective byte address */
-            unsigned long eff_addr = ((unsigned long)address_high << 16) | (unsigned long)addr16;
 
-            /* Bounds check then copy */
-            if (eff_addr + (unsigned long)byte_count <= (unsigned long)PROGMEM_LEN) {
-                memcpy(&progmem[eff_addr], line_content, byte_count);
-            } else {
-                if (verbose > 1) fprintf(stderr, "Line %d: data at 0x%08lX len %d out of PROGMEM range - skipping\n", lineno, eff_addr, byte_count);
-            }
+		/* Handle record types */
+		if (rectype == 0) {
+			/* Data record: compute effective byte address */
+			unsigned long eff_addr = ((unsigned long)address_high << 16) | (unsigned long)addr16;
 
-            /* Legacy PIC16 config mapping: many HEXs place config words at segment 1 offset 0x000E (i.e. byte addr 0x1000E) */
-            if (p16_cfg && address_high == 0x0001 && addr16 >= 0x000E) {
-                for (int i = 0; i < byte_count; i++) {
-                    long cfg_index = (long)addr16 + i - 0x000E;
-                    if (cfg_index >= 0 && cfg_index < CONFIG_LEN) {
-                        config[cfg_index] = line_content[i];
-                    } else {
-                        if (verbose > 3) fprintf(stderr, "Line %d: config index out of bounds %ld (skipped)\n", lineno, cfg_index);
-                    }
-                }
-            }
+			/* Bounds check then copy */
+			if (eff_addr + (unsigned long)byte_count <= (unsigned long)PROGMEM_LEN) {
+				memcpy(&progmem[eff_addr], line_content, byte_count);
+			} else {
+				if (verbose > 1) fprintf(stderr, "Line %d: data at 0x%08lX len %d out of PROGMEM range - skipping\n", lineno, eff_addr, byte_count);
+			}
 
-        } else if (rectype == 1) {
-            /* End Of File */
-            if (verbose > 2) printf("Line %d: EOF record\n", lineno);
-            break;
+			/* Legacy PIC16 config mapping: many HEXs place config words at segment 1 offset 0x000E (i.e. byte addr 0x1000E) */
+			if (p16_cfg && address_high == 0x0001 && addr16 >= 0x000E) {
+				for (int i = 0; i < byte_count; i++) {
+					long cfg_index = (long)addr16 + i - 0x000E;
+					if (cfg_index >= 0 && cfg_index < CONFIG_LEN) {
+						config[cfg_index] = line_content[i];
+					} else {
+						if (verbose > 3) fprintf(stderr, "Line %d: config index out of bounds %ld (skipped)\n", lineno, cfg_index);
+					}
+				}
+			}
 
-        } else if (rectype == 4) {
-            /* Extended Linear Address */
-            if (byte_count != 2) {
-                if (verbose > 0) fprintf(stderr, "Line %d: ELA record with length %d (expected 2), skipping\n", lineno, byte_count);
-                continue;
-            }
-            address_high = ((unsigned int)line_content[0] << 8) | (unsigned int)line_content[1];
-            if (verbose > 2) printf("Line %d: ELA -> 0x%04X\n", lineno, address_high);
+		} else if (rectype == 1) {
+			/* End Of File */
+			if (verbose > 2) printf("Line %d: EOF record\n", lineno);
+			break;
 
-        } else if (rectype == 2) {
-            /* Extended Segment Address: segment * 16 gives the upper address bits */
-            if (byte_count != 2) {
-                if (verbose > 0) fprintf(stderr, "Line %d: ESA record with length %d (expected 2), skipping\n", lineno, byte_count);
-                continue;
-            }
-            unsigned int seg = ((unsigned int)line_content[0] << 8) | (unsigned int)line_content[1];
-            /* Convert segment (shift left 4) to an equivalent high 16-bit for linear use when possible */
-            /* seg << 4 is the upper bits; compute high 16 bits = (seg << 4) >> 16 -> effectively seg >> 12 */
-            address_high = (seg >> 12) & 0xFFFF;
-            if (verbose > 2) printf("Line %d: ESA raw seg=0x%04X -> address_high=0x%04X\n", lineno, seg, address_high);
+		} else if (rectype == 4) {
+			/* Extended Linear Address */
+			if (byte_count != 2) {
+				if (verbose > 0) fprintf(stderr, "Line %d: ELA record with length %d (expected 2), skipping\n", lineno, byte_count);
+				continue;
+			}
+			address_high = ((unsigned int)line_content[0] << 8) | (unsigned int)line_content[1];
+			if (verbose > 2) printf("Line %d: ELA -> 0x%04X\n", lineno, address_high);
 
-        } else if (rectype == 5) {
-            /* Start Linear Address record - presentational, we accept and ignore */
-            if (verbose > 3) printf("Line %d: Start Linear Address (type 05) ignored\n", lineno);
-        } else {
-            if (verbose > 2) printf("Line %d: unsupported record type %d, ignoring\n", lineno, rectype);
-        }
-    }
+		} else if (rectype == 2) {
+			/* Extended Segment Address: segment * 16 gives the upper address bits */
+			if (byte_count != 2) {
+				if (verbose > 0) fprintf(stderr, "Line %d: ESA record with length %d (expected 2), skipping\n", lineno, byte_count);
+				continue;
+			}
+			unsigned int seg = ((unsigned int)line_content[0] << 8) | (unsigned int)line_content[1];
+			/* Convert segment (shift left 4) to an equivalent high 16-bit for linear use when possible */
+			/* seg << 4 is the upper bits; compute high 16 bits = (seg << 4) >> 16 -> effectively seg >> 12 */
+			address_high = (seg >> 12) & 0xFFFF;
+			if (verbose > 2) printf("Line %d: ESA raw seg=0x%04X -> address_high=0x%04X\n", lineno, seg, address_high);
 
-    if (line) free(line);
-    fclose(sf);
-    if (verbose > 1) printf("parse_hex: finished (lines processed: %d)\n", lineno);
-    return 0;
+		} else if (rectype == 5) {
+			/* Start Linear Address record - presentational, we accept and ignore */
+			if (verbose > 3) printf("Line %d: Start Linear Address (type 05) ignored\n", lineno);
+		} else {
+			if (verbose > 2) printf("Line %d: unsupported record type %d, ignoring\n", lineno, rectype);
+		}
+	}
+
+	if (line) free(line);
+	fclose(sf);
+	if (verbose > 1) printf("parse_hex: finished (lines processed: %d)\n", lineno);
+	return 0;
 }
 
 
 void apply_safe_defaults(unsigned char *buffer) {
-    // Config 1 Word (PIC Address 0x8007 -> Buffer Offset 0x1000E)
-    if (buffer[0x1000E] == 0xFF && buffer[0x1000F] == 0xFF) {
-        printf(">> Patching: Config 1 missing in HEX. Applying safe INTOSC defaults.\n");
-        buffer[0x1000E] = SAFE_CFG1_L;
-        buffer[0x1000F] = SAFE_CFG1_H;
-    }
-    // Config 2 Word (PIC Address 0x8008 -> Buffer Offset 0x10010)
-    if (buffer[0x10010] == 0xFF && buffer[0x10011] == 0xFF) {
-        printf(">> Patching: Config 2 missing in HEX. Applying safe LVP defaults.\n");
-        buffer[0x10010] = SAFE_CFG2_L;
-        buffer[0x10011] = SAFE_CFG2_H;
-    }
+	// Config 1 Word (PIC Address 0x8007 -> Buffer Offset 0x1000E)
+	if (buffer[0x1000E] == 0xFF && buffer[0x1000F] == 0xFF) {
+		printf(">> Patching: Config 1 missing in HEX. Applying safe INTOSC defaults.\n");
+		buffer[0x1000E] = SAFE_CFG1_L;
+		buffer[0x1000F] = SAFE_CFG1_H;
+	}
+	// Config 2 Word (PIC Address 0x8008 -> Buffer Offset 0x10010)
+	if (buffer[0x10010] == 0xFF && buffer[0x10011] == 0xFF) {
+		printf(">> Patching: Config 2 missing in HEX. Applying safe LVP defaults.\n");
+		buffer[0x10010] = SAFE_CFG2_L;
+		buffer[0x10011] = SAFE_CFG2_H;
+	}
 }
 
 int main(int argc, char *argv[]) {
@@ -1329,7 +1337,7 @@ int main(int argc, char *argv[]) {
 		fflush(stdout);
 		sleep_ms(sleep_time);
 	}
-	
+
 	if (hv_programming) {
 		if (verbose > 0)
 			printf("Switching Arduino to High Voltage Mode...\n");
@@ -1344,8 +1352,8 @@ int main(int argc, char *argv[]) {
 			exit(1);
 		}
 	}
-	
-	
+
+
 	for (i = 0; i < PROGMEM_LEN; i++)
 		progmem[i] = 0xFF; // assume erased memories (0xFF)
 	for (i = 0; i < CONFIG_LEN; i++)
@@ -1357,11 +1365,11 @@ int main(int argc, char *argv[]) {
 	hex_ok =
 	    parse_hex(filename, pm_point,
 	              cm_point); // parse and write content of hex file into buffers
-	if (verbose > 0)              
-    printf("Passed parse_hex...with %d\n",hex_ok);
-    //quit
+	if (verbose > 0)
+		printf("Passed parse_hex...with %d\n",hex_ok);
+	//quit
 	//return 0;
-   
+
 	for (i = 0; i < 70000; i++)
 		file_image[i] = progmem[i];
 
@@ -1375,9 +1383,9 @@ int main(int argc, char *argv[]) {
 	// inject config
 	for (i = 0; i < 10; i++)
 		file_image[2 * 0x8007 + i] = config_bytes[i];
-		
-	if (readflash != 1)	
-		apply_safe_defaults(progmem);	
+
+	if (readflash != 1)
+		apply_safe_defaults(progmem);
 
 	prog_enter_progmode(); // enter programming mode and probe the target
 	i = prog_get_device_id();
@@ -1437,7 +1445,7 @@ int main(int argc, char *argv[]) {
 						printf("#");
 						fflush(stdout);
 					}
-				} else if (verbose > 2&& (i%1024==0)) { 
+				} else if (verbose > 2&& (i%1024==0)) {
 					printf(".");
 					fflush(stdout);
 				}
@@ -1526,266 +1534,253 @@ int main(int argc, char *argv[]) {
 		}
 	} else {
 		if (program == 1) {
-			if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
-			        (chip_family == CF_P16F_D))
-				p16a_mass_erase();
-			if ((chip_family == CF_P16F_C))
-				p16c_mass_erase();
-			if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
-			        (chip_family == CF_P16F_D))
-				p16a_rst_pointer(); // pointer reset is needed before every "big"
-			// operation
-			if (verbose > 0)
-				printf("Programming FLASH (%d B in %d pages)", flash_size,
-				       flash_size / page_size);
-			fflush(stdout);
 
-			for (i = 0; i < 2 * flash_size; i = i + page_size) {
-				if (verbose > 1 && (i%1024==0)) {
-					printf(".");
-					fflush(stdout);
-				}
+			if(noeeprom == 1) {
 				if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
 				        (chip_family == CF_P16F_D))
-					p16a_program_page(i, page_size, 0);
+					p16a_mass_erase();
 				if ((chip_family == CF_P16F_C))
-					p16c_write_page(progmem + i, i, page_size);
+					p16c_mass_erase();
+				if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
+				        (chip_family == CF_P16F_D))
+					p16a_rst_pointer(); // pointer reset is needed before every "big"
+				// operation
+				if (verbose > 0)
+					printf("Programming FLASH (%d B in %d pages)", flash_size,
+					       flash_size / page_size);
+				fflush(stdout);
+
+				for (i = 0; i < 2 * flash_size; i = i + page_size) {
+					if (verbose > 1 && (i%1024==0)) {
+						printf(".");
+						fflush(stdout);
+					}
+					if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
+					        (chip_family == CF_P16F_D))
+						p16a_program_page(i, page_size, 0);
+					if ((chip_family == CF_P16F_C))
+						p16c_write_page(progmem + i, i, page_size);
+				}
+
+				if (verbose > 0)
+					printf("\n");
+				if (verbose > 0)
+					printf("Programming config\n");
+				if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
+				        (chip_family == CF_P16F_D))
+					p16a_program_config();
+				if (chip_family == CF_P16F_C)
+					p16c_write_cfg();
 			}
-
-			if (verbose > 0)
-				printf("\n");
-			if (verbose > 0)
-				printf("Programming config\n");
-			if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
-			        (chip_family == CF_P16F_D))
-				p16a_program_config();
-			if (chip_family == CF_P16F_C)
-				p16c_write_cfg();
-
-			// --- EEPROM Programming --- TODO skipped verify now, just dump and check
+			//EEPROM
 			if (chip_family == CF_P16F_A || chip_family == CF_P16F_D) {
-			//if (1==2) {
-				if (verbose > 0) {
-					printf("Writing EEPROM: ");
-					fflush(stdout);
-				}
-				// 1. Set Pointer to EEPROM Start (0xF000) dirty here as our pic16f1938 is in wrong group A
-				if (chip_family == CF_P16F_A) {
-					p16d_set_pointer(0xF000);
-				} else {
-					p16a_rst_pointer();
-					p16a_load_config();
-					p16a_inc_pointer(7); // Standard path to EEPROM for P16F_A
-				}
-				//dirty fix 
-				// 2. Write 256 bytes from the progmem buffer
-				for (i = 0; i < 256; i++) {
-				    unsigned char e_data = progmem[0x1E000 + i];
-				
-				    if (i == 0) {
-				        // 1. Write the first byte once (this might land in the wrong spot or be skipped)
-				        p16a_write_eeprom(e_data); 
-				        
-				        // 2. IMMEDIATELY force the pointer back to the start
-				        if (chip_family == CF_P16F_D) {
-				            p16d_set_pointer(0xf000); 
-				        }
-				        
-				        // 3. Write it again. Now the internal PC is guaranteed to be at 0xf000
-				        p16a_write_eeprom(e_data); 
-				    } else {
-				        // Normal path for all other bytes
-				        p16a_write_eeprom(e_data);
-				    }
-				
-				    if (verbose > 1) { printf("."); fflush(stdout); }
-				}
+				if(eeprom==1) {
+
+					if (verbose > 0) {
+						printf("Writing EEPROM: ");
+						fflush(stdout);
+					}
+					// 1. Set Pointer to EEPROM Start (0xF000)
+					if (chip_family == CF_P16F_D) {
+						p16d_set_pointer(0xF000);
+					} else {
+						p16a_rst_pointer();
+						p16a_load_config();
+						//p16a_inc_pointer(7); // Standard path to EEPROM for P16F_A
+					}
+					for (i = 0; i < 256; i++) {
+						unsigned char e_data;
+						e_data = progmem[0x1E000 + i];
+						p16a_write_eeprom(e_data);
+					}
+
 					if (i % 32 == 0) {
 						if (verbose > 1)
 							printf(".");
 						fflush(stdout);
 					}
 				}
-				if (verbose > 1)
-					printf(" OK\n");
 			}
+			//end eeprom
 
-			// --- EEPROM Programming --- TODO
+			if (verbose > 1)
+				printf(" OK\n");
 		}
-		if (verify == 1) {
-			if (verbose > 0)
-				printf("Verifying FLASH (%d B in %d pages)", flash_size,
-				       flash_size / page_size);
-			fflush(stdout);
+	}
+	if (verify == 1) {
+		if (verbose > 0)
+			printf("Verifying FLASH (%d B in %d pages)", flash_size,
+			       flash_size / page_size);
+		fflush(stdout);
+		if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
+		        (chip_family == CF_P16F_D))
+			p16a_rst_pointer();
+		for (i = 0; i < 2 * flash_size; i = i + page_size) {
+			if (verbose > 1&& (i%1024==0)) {
+				printf(".");
+				fflush(stdout);
+			}
 			if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
 			        (chip_family == CF_P16F_D))
-				p16a_rst_pointer();
-			for (i = 0; i < 2 * flash_size; i = i + page_size) {
-				if (verbose > 1&& (i%1024==0)) {
-					printf(".");
-					fflush(stdout);
-				}
-				if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
-				        (chip_family == CF_P16F_D))
-					p16a_read_page(tdat, page_size);
-				if ((chip_family == CF_P16F_C))
-					p16c_read_page(tdat, i, page_size);
-				for (j = 0; j < page_size; j++) {
-					if (file_image[i + j] != tdat[j]) {
-						printf("Error at 0x%4.4X E:0x%2.2X R:0x%2.2X\n", i + j,
-						       file_image[i + j], tdat[j]);
-						prog_exit_progmode();
-						exit(0);
-					}
+				p16a_read_page(tdat, page_size);
+			if ((chip_family == CF_P16F_C))
+				p16c_read_page(tdat, i, page_size);
+			for (j = 0; j < page_size; j++) {
+				if (file_image[i + j] != tdat[j]) {
+					printf("Error at 0x%4.4X E:0x%2.2X R:0x%2.2X\n", i + j,
+					       file_image[i + j], tdat[j]);
+					prog_exit_progmode();
+					exit(0);
 				}
 			}
-			if (verbose > 0)
-				printf("\n");
-			if (verbose > 0)
-				printf("Verifying config\n");
-			if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
-			        (chip_family == CF_P16F_D)) {
-				config = p16a_get_config(7);
-				econfig = (((unsigned int)(file_image[2 * 0x8007])) << 0) +
-				          (((unsigned int)(file_image[2 * 0x8007 + 1])) << 8);
-				if ((config & 0x3FFF) == (econfig & 0x3FFF)){
+		}
+		if (verbose > 0)
+			printf("\n");
+		if (verbose > 0)
+			printf("Verifying config\n");
+		if ((chip_family == CF_P16F_A) | (chip_family == CF_P16F_B) |
+		        (chip_family == CF_P16F_D)) {
+			config = p16a_get_config(7);
+			econfig = (((unsigned int)(file_image[2 * 0x8007])) << 0) +
+			          (((unsigned int)(file_image[2 * 0x8007 + 1])) << 8);
+			if ((config & 0x3FFF) == (econfig & 0x3FFF)) {
+				if (verbose > 1)
+					printf("config 1 OK: %4.4X\n", config);
+			} else
+				printf("config 1 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
+			config = p16a_get_config(8);
+			econfig = (((unsigned int)(file_image[2 * 0x8008])) << 0) +
+			          (((unsigned int)(file_image[2 * 0x8008 + 1])) << 8);
+			if ((config & 0x3FFF) == (econfig & 0x3FFF)) {
+				if (verbose > 1)
+					printf("config 2 OK: %4.4X\n", config);
+			} else
+				printf("config 2 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
+
+			if (chip_family == CF_P16F_D) {
+
+				config = p16a_get_config(9);
+				econfig = (((unsigned int)(file_image[2 * 0x8009])) << 0) +
+				          (((unsigned int)(file_image[2 * 0x8009 + 1])) << 8);
+				if (config == econfig) {
 					if (verbose > 1)
-						printf("config 1 OK: %4.4X\n", config);
+						printf("config 3 OK: %4.4X\n", config);
 				} else
-					printf("config 1 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
-				config = p16a_get_config(8);
-				econfig = (((unsigned int)(file_image[2 * 0x8008])) << 0) +
-				          (((unsigned int)(file_image[2 * 0x8008 + 1])) << 8);
+					printf("config 3 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
+				config = p16a_get_config(0x0a);
+				econfig = (((unsigned int)(file_image[2 * 0x800a])) << 0) +
+				          (((unsigned int)(file_image[2 * 0x800a + 1])) << 8);
 				if ((config & 0x3FFF) == (econfig & 0x3FFF)) {
 					if (verbose > 1)
-						printf("config 2 OK: %4.4X\n", config);
+						printf("config 4 OK: %4.4X\n", config);
 				} else
-					printf("config 2 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
-
-				if (chip_family == CF_P16F_D) {
-
-					config = p16a_get_config(9);
-					econfig = (((unsigned int)(file_image[2 * 0x8009])) << 0) +
-					          (((unsigned int)(file_image[2 * 0x8009 + 1])) << 8);
-					if (config == econfig) {
-						if (verbose > 1)
-							printf("config 3 OK: %4.4X\n", config);
-					} else
-						printf("config 3 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
-					config = p16a_get_config(0x0a);
-					econfig = (((unsigned int)(file_image[2 * 0x800a])) << 0) +
-					          (((unsigned int)(file_image[2 * 0x800a + 1])) << 8);
-					if ((config & 0x3FFF) == (econfig & 0x3FFF)) {
-						if (verbose > 1)
-							printf("config 4 OK: %4.4X\n", config);
-					} else
-						printf("config 4 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
-				}
+					printf("config 4 error: E:0x%4.4X R:0x%4.4X\n", config, econfig);
 			}
-			if (chip_family == CF_P16F_C) {
-				p16c_read_page(tdat, 0x8007 * 2, page_size);
-				for (j = 0; j < 10; j++) {
-					if (config_bytes[j] != tdat[j]) {
-						printf("Error at 0x%4.4X E:0x%2.2X R:0x%2.2X\n", i + j,
-						       config_bytes[j], tdat[j]);
-						prog_exit_progmode();
-						exit(0);
-					}
+		}
+		if (chip_family == CF_P16F_C) {
+			p16c_read_page(tdat, 0x8007 * 2, page_size);
+			for (j = 0; j < 10; j++) {
+				if (config_bytes[j] != tdat[j]) {
+					printf("Error at 0x%4.4X E:0x%2.2X R:0x%2.2X\n", i + j,
+					       config_bytes[j], tdat[j]);
+					prog_exit_progmode();
+					exit(0);
 				}
 			}
 		}
+	}
 
-		if (readflash == 1) {
-			if (verbose > 0)
-				printf("Reading device to %s...\n", hex_out_name);
-			FILE *hf = fopen(hex_out_name, "w");
-			if (!hf) {
-				printf("Error opening %s\n", hex_out_name);
-				exit(1);
-			}
+	if (readflash == 1) {
+		if (verbose > 0)
+			printf("Reading device to %s...\n", hex_out_name);
+		FILE *hf = fopen(hex_out_name, "w");
+		if (!hf) {
+			printf("Error opening %s\n", hex_out_name);
+			exit(1);
+		}
 
-			// 1. Read FLASH
-			if (verbose > 0)
-				printf("Reading FLASH: ");
+		// 1. Read FLASH
+		if (verbose > 0)
+			printf("Reading FLASH: ");
+		if ((chip_family == CF_P16F_A) || (chip_family == CF_P16F_B) ||
+		        (chip_family == CF_P16F_D))
+			p16a_rst_pointer();
+
+		for (i = 0; i < flash_size * 2; i = i + page_size) {
 			if ((chip_family == CF_P16F_A) || (chip_family == CF_P16F_B) ||
 			        (chip_family == CF_P16F_D))
-				p16a_rst_pointer();
+				p16a_read_page(tdat, page_size);
+			if (chip_family == CF_P16F_C)
+				p16c_read_page(tdat, i, page_size);
 
-			for (i = 0; i < flash_size * 2; i = i + page_size) {
-				if ((chip_family == CF_P16F_A) || (chip_family == CF_P16F_B) ||
-				        (chip_family == CF_P16F_D))
-					p16a_read_page(tdat, page_size);
-				if (chip_family == CF_P16F_C)
-					p16c_read_page(tdat, i, page_size);
+			for (j = 0; j < page_size; j += 16)
+				write_hex_line(hf, 16, i + j, 0, &tdat[j]);
 
-				for (j = 0; j < page_size; j += 16)
-					write_hex_line(hf, 16, i + j, 0, &tdat[j]);
-
-				if (verbose > 1 && (i%1024==0)) {
-					printf(".");
-					fflush(stdout);
-				}
+			if (verbose > 1 && (i%1024==0)) {
+				printf(".");
+				fflush(stdout);
 			}
-
-			// 2. Read EEPROM
-			// PIC16 EEPROM is at word 0xF000 -> Intel Hex Byte 0x1E000 (Segment
-			// 0x0001, Offset 0xE000)
-			if (verbose > 0)
-				printf("\nReading EEPROM: ");
-			unsigned char addr_ext[2] = {0x00, 0x01};
-			write_hex_line(hf, 2, 0, 4,
-			               addr_ext); // Set Extended Linear Address to 0x0001
-
-			if (chip_family == CF_P16F_D)
-				p16d_set_pointer(0xf000);
-
-			for (i = 0; i < 256; i = i + page_size) {
-				if ((chip_family == CF_P16F_A) || (chip_family == CF_P16F_D))
-					p16a_read_eeprom(tdat, page_size);
-
-				for (j = 0; j < page_size; j += 16)
-					write_hex_line(hf, 16, 0xE000 + i + j, 0, &tdat[j]);
-
-				if (verbose > 1) {
-					printf(".");
-					fflush(stdout);
-				}
-			}
-
-			// 3. Read Config (Fixed)
-			if (verbose > 0) printf("\nReading Config: ");
-			
-			// 1. Tell the HEX file we are moving to the 0x10000+ segment
-			unsigned char addr_ext_cfg[2] = {0x00, 0x01};
-			write_hex_line(hf, 2, 0, 4, addr_ext_cfg); // Type 04: Extended Linear Address
-			
-			unsigned char cdat[8]; // Buffer for config bytes
-			int num_configs = (chip_family == CF_P16F_D) ? 4 : 2;
-			
-			for (i = 0; i < num_configs; i++) {
-    			unsigned int val = p16a_get_config(7 + i); // Read Config 1 (0x8007), 2 (0x8008), etc.
-    			cdat[i * 2] = val & 0xFF;         // Low byte
-    			cdat[i * 2 + 1] = (val >> 8) & 0xFF; // High byte
-			}
-			
-			// 2. Write the config line at offset 0x000E (Byte address 2 * 0x8007 = 0x1000E)
-			write_hex_line(hf, num_configs * 2, 0x000E, 0, cdat);
-			
-			if (verbose > 0) printf("Done\n");
-
-
-			// 4. End of File
-			fprintf(hf, ":00000001FF\n");
-			fclose(hf);
-			if (verbose > 0)
-				printf("\nDone.\n");
 		}
-		prog_exit_progmode();
-#if !defined(__linux__) && !defined(__APPLE__)
-    if (port_handle != INVALID_HANDLE_VALUE) {
-        CloseHandle(port_handle);
-    }
-#endif
-		return 0;
+
+		// 2. Read EEPROM
+		// PIC16 EEPROM is at word 0xF000 -> Intel Hex Byte 0x1E000 (Segment
+		// 0x0001, Offset 0xE000)
+		if (verbose > 0)
+			printf("\nReading EEPROM: ");
+		unsigned char addr_ext[2] = {0x00, 0x01};
+		write_hex_line(hf, 2, 0, 4,
+		               addr_ext); // Set Extended Linear Address to 0x0001
+
+		if (chip_family == CF_P16F_D)
+			p16d_set_pointer(0xf000);
+
+		for (i = 0; i < 256; i = i + page_size) {
+			if ((chip_family == CF_P16F_A) || (chip_family == CF_P16F_D))
+				p16a_read_eeprom(tdat, page_size);
+
+			for (j = 0; j < page_size; j += 16)
+				write_hex_line(hf, 16, 0xE000 + i + j, 0, &tdat[j]);
+
+			if (verbose > 1) {
+				printf(".");
+				fflush(stdout);
+			}
+		}
+
+		// 3. Read Config (Fixed)
+		if (verbose > 0) printf("\nReading Config: ");
+
+		// 1. Tell the HEX file we are moving to the 0x10000+ segment
+		unsigned char addr_ext_cfg[2] = {0x00, 0x01};
+		write_hex_line(hf, 2, 0, 4, addr_ext_cfg); // Type 04: Extended Linear Address
+
+		unsigned char cdat[8]; // Buffer for config bytes
+		int num_configs = (chip_family == CF_P16F_D) ? 4 : 2;
+
+		for (i = 0; i < num_configs; i++) {
+			unsigned int val = p16a_get_config(7 + i); // Read Config 1 (0x8007), 2 (0x8008), etc.
+			cdat[i * 2] = val & 0xFF;         // Low byte
+			cdat[i * 2 + 1] = (val >> 8) & 0xFF; // High byte
+		}
+
+		// 2. Write the config line at offset 0x000E (Byte address 2 * 0x8007 = 0x1000E)
+		write_hex_line(hf, num_configs * 2, 0x000E, 0, cdat);
+
+		if (verbose > 0) printf("Done\n");
+
+
+		// 4. End of File
+		fprintf(hf, ":00000001FF\n");
+		fclose(hf);
+		if (verbose > 0)
+			printf("\nDone.\n");
 	}
+	prog_exit_progmode();
+#if !defined(__linux__) && !defined(__APPLE__)
+	if (port_handle != INVALID_HANDLE_VALUE) {
+		CloseHandle(port_handle);
+	}
+#endif
+	return 0;
 }
+
