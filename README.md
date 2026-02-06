@@ -63,10 +63,11 @@ Writing hex on Windows
 `pp3r_x86_64.exe -s 2000 -c COM3 -v2 -t 16f1938 atu_100_fw_EXT_32_oled_lvp.hex`
 
 To enable **High Voltage Mode** (triggers the A3 optocoupler):
-`./pp3r -c /dev/ttyACM0 -h -t 16f1938 file.hex -s 2000`
+`./pp3r -s 2000 -c /dev/ttyACM0 -h -t 16f1938 file.hex`
 
 On windows, the order of parameter is a bit critical, e.s.p keep file name as last argument
 But to read hex, keep -r dump_file_name.hex before -t 16f1938
+`pp3r_x86_64.exe -r my_hex_dump.exe -s 2000 -c COM3 -v2 -t 16f1938`
 
 ### Key Options
 * `-h`: Enable High Voltage Programming (HVP) pulse.
