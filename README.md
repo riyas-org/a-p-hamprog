@@ -82,6 +82,7 @@ But to read hex, keep -r dump_file_name.hex before -t 16f1938
   
 ### Graphical User Interface
 A simple graphical user interface for windows can be found in the release pages, which does it easy to flas hex files to atu 100 and allowes eeprom editing.
+Link: https://github.com/riyas-org/a-p-hamprog/releases/tag/v1.2.1
 
 ### Programming the arduino
 Upload the firmware (under fw folder) to an arduino using regular methods (arduino software). Thr file/sketch is ppr.ino
