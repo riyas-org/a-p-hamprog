@@ -1,4 +1,4 @@
-# PIC Programmer for 8-bit Devices (ATU-100 & HVP Enhanced)
+# Arduino as PIC Programmer for 8-bit Devices (ATU-100 & HVP Enhanced)
 
 This project is a specialized fork of the Arduino-based PIC16F1xxx programmer. It is modified specifically for amateur radio enthusiasts working on projects like the **ATU-100 antenna tuner**, which uses the **PIC16(L)F1938**.
 
