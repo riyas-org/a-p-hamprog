@@ -34,9 +34,9 @@ Using an optocoupler ensures that the 9V used for HVP never reaches the Arduino 
 ### 🚀 HVP Command
 
 As the optocoupler logic effectively "inverts" or isolates the signal, use command below with -h
-**[CODE]bash**
-./pp3r -c /dev/ttyUSB0 -s 16f1938 -h -p atu_100_fw_EXT_32_oled_lvp.hex
-**[CODE]**
+
+`./pp3r -c /dev/ttyUSB0 -s 16f1938 -h -p atu_100_fw_EXT_32_oled_lvp.hex`
+
 
 ### 4-Sentence Release/Description (as requested):
 
